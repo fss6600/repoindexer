@@ -59,11 +59,12 @@ func main() {
 			mode = cmdRegl.Arg(0)
 		}
 
-		if err := reglament(repoPath, mode); err != nil {
-			log.Fatalf("ошибка перевода режима репозитория: %v\n", err)
+		if msg, err := Reglament(repoPath, mode); err != nil {
+			log.Fatalf("ERROR: %v\n", err)
+		} else {
+			fmt.Println(msg)
 		}
 		return
-
 	}
 
 	// подключение к БД

@@ -2,13 +2,14 @@ package main
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 )
 
 const (
-	fReglament string = "__REGLAMENT__"
-	fIndexName string = "index.gz"
+	fnReglament string = "__REGLAMENT__"
+	fnIndexName string = "index.gz"
 )
 
 func repoInit(repoPath string) error {
@@ -16,24 +17,50 @@ func repoInit(repoPath string) error {
 	return nil
 }
 
-func reglament(repoPath string, mode string) error {
-	fileRegl := filepath.Join(repoPath, fReglament)
+// Reglament активирует/деактивирует режим регламента репозитория
+func Reglament(repoPath string, mode string) (string, error) {
+	var (
+		msg            *string
+		fileExists     bool   = true
+		reglOnMessage  string = "режим регламента активирован [on]"
+		reglOffMessage string = "режим регламента деактивирован [off]"
+	)
+
+	fileRegl := filepath.Join(repoPath, fnReglament)
+	// проверка на наличие файла-флага
+	if _, err := os.Stat(fileRegl); os.IsNotExist(err) {
+		fileExists = false
+	}
 
 	switch mode {
 	case "":
-		if _, err := os.Stat(fileRegl); err != nil {
-			fmt.Println("Режим регламента активирован [on]")
+		if fileExists {
+			msg = &reglOnMessage
 		} else {
-			fmt.Println("Режим регламента отключен [off]")
+			msg = &reglOffMessage
 		}
 	case "on":
-		fmt.Println("режим регламента активирован")
+		if fileExists {
+			owner, _ := ioutil.ReadFile(fileRegl)
+			v := fmt.Sprintf("%s (%s)", reglOnMessage, string(owner))
+			msg = &v
+			break
+		}
+		if err := ioutil.WriteFile(fileRegl, taskOwnerInfo(), 0644); err != nil {
+			return *msg, err
+		}
+		msg = &reglOnMessage
 	case "off":
-		fmt.Println("режим регламента деактивирован")
+		if fileExists {
+			if err := os.Remove(fileRegl); err != nil {
+				return *msg, err
+			}
+		}
+		msg = &reglOffMessage
 	default:
-		return fmt.Errorf("неверный режим регламента: %s", mode)
+		return *msg, fmt.Errorf("неверный режим регламента: %s", mode)
 	}
-	return nil
+	return *msg, nil
 }
 
 func index(repo *RepoObject, packets []string) error {
@@ -67,4 +94,9 @@ func setPacketStatus(repo *RepoObject, setDisable bool, pack []string) error {
 	}
 
 	return nil
+}
+
+// возвращает данные IP,.. инициатора работ в репозитории
+func taskOwnerInfo() []byte {
+	return []byte("127.0.0.1") //todo: добавить информацию о подключении
 }
