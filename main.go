@@ -1,3 +1,5 @@
+// Проект "Репозиторий подсистем ЕИИС Соцстрах"
+// Indexer: создание репозитория подсистем ЕИИС "Соцстрах" и индексация пакетов
 package main
 
 import (
@@ -6,63 +8,125 @@ import (
 	"log"
 )
 
-const (
-	version string = "0.0.1a"
-	fDBName string = "index.db"
-	fIndexName string = "index.gz"
-	fReglament string = "__REGLAMENT__"
-)
-
-// Проект "Репозиторий подсистем ЕИИС Соцстрах"
-// Indexer: создание репозитория подсистем ЕИИС "Соцстрах" и индексация пакетов
+const version string = "0.0.1a"
 
 func main() {
-	// 
-	repoPath := flag.String("repopath", "", "полный путь к репозиторию")
-	// fullMode := flag.Bool("full", false, "режим полной индексации")
-	getVersion := flag.Bool("version", false, "версия программы")
+	var repoPath string
+	var getVersion, fullMode, popIndex bool
 
+	flag.StringVar(&repoPath, "repopath", "", "полный путь к репозиторию")
+	flag.BoolVar(&fullMode, "f", false, "режим полной индексации")
+	flag.BoolVar(&getVersion, "v", false, "версия программы")
+	flag.BoolVar(&popIndex, "p", false, "выгрузить данные в индекс-файл")
 	flag.Parse()
 
 	// вывод версии
-	if *getVersion {
+	if getVersion {
 		fmt.Printf("Версия: %v\n", version)
 		return
 	}
 
-	// проверка на наличие команды
-	if len(flag.Args()) == 0 {
-		fmt.Println("не указана команда")
-		// flag.PrintDefaults()
-		return
-	}
-
 	// проверка на наличие пути к репозиторию
-	if *repoPath == "" {
+	if repoPath == "" {
 		fmt.Println("не указан путь к репозиторию")
 		// flag.PrintDefaults()
 		return
 	}
 
-	// fmt.Println(flag.Args())
-
-	switch flag.Args()[0] {
-	case "init":
-		fmt.Println("инициализация репозитория")
-
-	case "populate": {
-		fmt.Println("выгрузка данных из БД в index файл")
+	// проверка на наличие команды и последующая обработка
+	if len(flag.Args()) == 0 {
+		fmt.Println("не указана команда")
+		// flag.PrintDefaults()
+		return
 	}
+	cmd := flag.Args()[0]
 
-	case "index":
-		cmdIndex := flag.NewFlagSet("index", flag.ErrorHandling(1))
-		cmdIndex.Parse(flag.Args()[1:])
-		if err := index(repoPath, cmdIndex.Args()); !=nil {
-			log.Fatal("ошибка индексирования репозитория")
+	// обработка команд, не требующих подключения к БД
+	switch cmd {
+	case "init": // инициализация репозитория
+		if err := repoInit(repoPath); err != nil {
+			log.Fatalf("ошибка при инициализации репозитория %v: %v", repoPath, err)
+		}
+		return
+
+	case "reglament": // on|off режим регламента
+		var mode string
+
+		cmdRegl := flag.NewFlagSet("reglament", flag.ErrorHandling(1))
+		cmdRegl.Parse(flag.Args()[1:])
+
+		if len(cmdRegl.Args()) != 0 {
+			mode = cmdRegl.Arg(0)
 		}
 
-	default:
-		fmt.Println("не указана команда")
+		if err := reglament(repoPath, mode); err != nil {
+			log.Fatalf("ошибка перевода режима репозитория: %v\n", err)
+		}
 		return
+
+	}
+
+	// подключение к БД
+	pRepoObj, err := NewRepoObj(repoPath)
+	if err != nil {
+		log.Fatalf("ERROR: %v", err)
+	}
+
+	if fullMode {
+		pRepoObj.SetFullMode()
+	}
+
+	defer pRepoObj.Close()
+
+	switch cmd {
+	case "index": // индексация файлов репозитория с записью в БД
+		cmdIndex := flag.NewFlagSet("index", flag.ErrorHandling(1))
+		cmdIndex.Parse(flag.Args()[1:])
+
+		if err := index(pRepoObj, cmdIndex.Args()); err != nil {
+			log.Fatalf("ошибка индексирования репозитория: %v\n", err)
+		}
+		if popIndex {
+			goto DO_POPULATE // выгрузка данных в индекс-файл
+		}
+		break
+	DO_POPULATE:
+		fallthrough
+	case "populate": // выгрузка данных индексации из БД в index.json[gz]
+		if err = populate(pRepoObj); err != nil {
+			log.Fatalf("ошибка выгрузки данных: %v\n", err)
+		}
+
+	case "enable", "disable": // активация/деактивация пакетов в репозитории
+		var setDisable bool
+		cmdSetStatus := flag.NewFlagSet("setstatus", flag.ErrorHandling(1))
+		cmdSetStatus.Parse(flag.Args()[1:])
+
+		packs := cmdSetStatus.Args()
+
+		if len(packs) == 0 {
+			fmt.Println("укажите по крайней мере один пакет")
+			return
+		}
+
+		if cmd == "disable" {
+			setDisable = true
+		}
+
+		if err := setPacketStatus(pRepoObj, setDisable, packs); err != nil {
+			log.Fatalf("ошибка установления статуса пакетов: %v", err)
+		}
+
+	case "alias": // установка/снятие псевдонимов пакетов
+
+	case "clean": // профилактика БД
+
+	case "cleardb": // очистка БД от данных
+
+	case "status": // вывод информации о репозитории
+		repoStatus(pRepoObj)
+
+	default:
+		fmt.Println("команда не опознана")
 	}
 }

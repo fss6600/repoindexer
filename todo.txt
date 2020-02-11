@@ -1,2 +1,23 @@
 # todo: обработка флагов командной строки
+commands:
+- init
+- index [pacname ...]
+- populate
+- status
+- enable packname
+- disable packname
+- alias set aliasname=packetname [aliasname1 packetname1] ...
+- alias del aliasname [aliasname1] ...
+- cleardb [index | alias | status | all]
+- clean //'db profilactics'
+
+flags:
+-repopath /path/to/repo
+-h 'help'
+-d 'debug mode'
+-p 'populate data after index'
+-f 'full index mode'
+
+
+
 # todo: вывод информации по флагу -h
