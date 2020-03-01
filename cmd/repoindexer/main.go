@@ -53,7 +53,9 @@ func main() {
 		var mode string
 
 		cmdRegl := flag.NewFlagSet("reglament", flag.ErrorHandling(1))
-		cmdRegl.Parse(flag.Args()[1:])
+		if err := cmdRegl.Parse(flag.Args()[1:]); err != nil {
+			log.Fatalln(err)
+		}
 
 		if len(cmdRegl.Args()) != 0 {
 			mode = cmdRegl.Arg(0)
@@ -82,7 +84,9 @@ func main() {
 	switch cmd {
 	case "index": // индексация файлов репозитория с записью в БД
 		cmdIndex := flag.NewFlagSet("index", flag.ErrorHandling(1))
-		cmdIndex.Parse(flag.Args()[1:])
+		if err := cmdIndex.Parse(flag.Args()[1:]); err != nil {
+			log.Fatalln(err)
+		}
 
 		if err := index(pRepoObj, cmdIndex.Args()); err != nil {
 			log.Fatalf("ошибка индексирования репозитория: %v\n", err)
@@ -101,7 +105,9 @@ func main() {
 	case "enable", "disable": // активация/деактивация пакетов в репозитории
 		var setDisable bool
 		cmdSetStatus := flag.NewFlagSet("setstatus", flag.ErrorHandling(1))
-		cmdSetStatus.Parse(flag.Args()[1:])
+		if err := cmdSetStatus.Parse(flag.Args()[1:]); err != nil {
+			log.Fatalln(err)
+		}
 
 		packs := cmdSetStatus.Args()
 
@@ -125,7 +131,9 @@ func main() {
 	case "cleardb": // очистка БД от данных
 
 	case "status": // вывод информации о репозитории
-		repoStatus(pRepoObj)
+		if err := repoStatus(pRepoObj); err != nil {
+			log.Fatalln(err)
+		}
 
 	default:
 		fmt.Println("команда не опознана")

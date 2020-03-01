@@ -98,5 +98,5 @@ func setPacketStatus(repo *RepoObject, setDisable bool, pack []string) error {
 
 // возвращает данные IP,.. инициатора работ в репозитории
 func taskOwnerInfo() []byte {
-	return []byte("127.0.0.1") //todo: добавить информацию о подключении
+	return []byte("127.0.0.1\n") //todo: добавить информацию о подключении
 }
