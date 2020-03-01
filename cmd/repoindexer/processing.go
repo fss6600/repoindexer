@@ -12,11 +12,6 @@ const (
 	//fnIndexName string = "index.gz"
 )
 
-func repoInit(repoPath *string) error {
-	fmt.Printf("инициализация репозитория: %v\n", *repoPath)
-	return nil
-}
-
 // reglamentMode активирует/деактивирует режим регламента репозитория
 func reglamentMode(repoPath *string, mode *string) (string, error) {
 	const (

@@ -44,11 +44,10 @@ func main() {
 	// обработка команд, не требующих подключения к БД
 	switch cmd {
 	case "init": // инициализация репозитория
-		if err := repoInit(&repoPath); err != nil {
+		if err := initDB(repoPath); err != nil {
 			log.Fatalf("ошибка при инициализации репозитория %v: %v", repoPath, err)
 		}
 		return
-
 	case "reglament": // on|off режим регламента
 		var mode string
 
@@ -69,17 +68,19 @@ func main() {
 		return
 	}
 
+	pRepoObj := NewRepoObj(repoPath)
+
 	// подключение к БД
-	pRepoObj, err := NewRepoObj(repoPath)
-	if err != nil {
-		log.Fatalf("ERROR: %v", err)
+	if err := pRepoObj.OpenDB(); err != nil {
+		log.Fatalf("ERROR: %s\n", err)
 	}
 
 	if fullMode {
 		pRepoObj.SetFullMode()
 	}
 
-	defer pRepoObj.Close()
+	// закрыть подключение при выходе из функции
+	defer pRepoObj.CloseDB()
 
 	switch cmd {
 	case "index": // индексация файлов репозитория с записью в БД
@@ -98,7 +99,7 @@ func main() {
 	DO_POPULATE:
 		fallthrough
 	case "populate": // выгрузка данных индексации из БД в index.json[gz]
-		if err = populate(pRepoObj); err != nil {
+		if err := populate(pRepoObj); err != nil {
 			log.Fatalf("ошибка выгрузки данных: %v\n", err)
 		}
 
