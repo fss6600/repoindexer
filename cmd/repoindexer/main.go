@@ -44,7 +44,7 @@ func main() {
 	// обработка команд, не требующих подключения к БД
 	switch cmd {
 	case "init": // инициализация репозитория
-		if err := repoInit(repoPath); err != nil {
+		if err := repoInit(&repoPath); err != nil {
 			log.Fatalf("ошибка при инициализации репозитория %v: %v", repoPath, err)
 		}
 		return
@@ -61,7 +61,7 @@ func main() {
 			mode = cmdRegl.Arg(0)
 		}
 
-		if msg, err := Reglament(repoPath, mode); err != nil {
+		if msg, err := reglamentMode(&repoPath, &mode); err != nil {
 			log.Fatalf("ERROR: %v\n", err)
 		} else {
 			fmt.Println(msg)

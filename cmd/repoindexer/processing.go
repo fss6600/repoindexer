@@ -9,58 +9,57 @@ import (
 
 const (
 	fnReglament string = "__REGLAMENT__"
-	fnIndexName string = "index.gz"
+	//fnIndexName string = "index.gz"
 )
 
-func repoInit(repoPath string) error {
-	fmt.Printf("инициализация репозитория: %v\n", repoPath)
+func repoInit(repoPath *string) error {
+	fmt.Printf("инициализация репозитория: %v\n", *repoPath)
 	return nil
 }
 
-// Reglament активирует/деактивирует режим регламента репозитория
-func Reglament(repoPath string, mode string) (string, error) {
-	var (
-		msg            *string
-		fileExists     bool   = true
+// reglamentMode активирует/деактивирует режим регламента репозитория
+func reglamentMode(repoPath *string, mode *string) (string, error) {
+	const (
 		reglOnMessage  string = "режим регламента активирован [on]"
 		reglOffMessage string = "режим регламента деактивирован [off]"
 	)
 
-	fileRegl := filepath.Join(repoPath, fnReglament)
+	var fileExists bool = true
+
+	fileRegl := filepath.Join(*repoPath, fnReglament)
 	// проверка на наличие файла-флага
 	if _, err := os.Stat(fileRegl); os.IsNotExist(err) {
 		fileExists = false
 	}
 
-	switch mode {
+	switch *mode {
 	case "":
 		if fileExists {
-			msg = &reglOnMessage
+			return reglOnMessage, nil
 		} else {
-			msg = &reglOffMessage
+			return reglOffMessage, nil
 		}
 	case "on":
 		if fileExists {
 			owner, _ := ioutil.ReadFile(fileRegl)
-			v := fmt.Sprintf("%s (%s)", reglOnMessage, string(owner))
-			msg = &v
-			break
+			return fmt.Sprintf("%s (%s)", reglOnMessage, string(owner)), nil
 		}
+
 		if err := ioutil.WriteFile(fileRegl, taskOwnerInfo(), 0644); err != nil {
-			return *msg, err
+			return "", err
 		}
-		msg = &reglOnMessage
+		return reglOnMessage, nil
 	case "off":
 		if fileExists {
 			if err := os.Remove(fileRegl); err != nil {
-				return *msg, err
+				return "", err
 			}
 		}
-		msg = &reglOffMessage
+		return reglOffMessage, nil
 	default:
-		return *msg, fmt.Errorf("неверный режим регламента: %s", mode)
+		return "", fmt.Errorf("неверный режим регламента: %s", mode)
 	}
-	return *msg, nil
+
 }
 
 func index(repo *RepoObject, packets []string) error {
