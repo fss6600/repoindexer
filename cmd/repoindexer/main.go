@@ -65,14 +65,14 @@ func main() {
 	}
 
 	// инициализация и подключение к БД
-	pRepoObj := NewRepoObj(repoPath)
-	if err := pRepoObj.OpenDB(); err != nil {
-		log.Fatalf("ERROR: %s\n", err)
+	repoPtr := NewRepoObj(repoPath)
+	if err := repoPtr.OpenDB(); err != nil {
+		log.Fatalln(err)
 	}
-	defer pRepoObj.CloseDB()
+	defer repoPtr.CloseDB()
 
 	if flagFullMode {
-		pRepoObj.SetFullMode()
+		repoPtr.SetFullMode()
 	}
 
 	switch cmd {
@@ -82,39 +82,39 @@ func main() {
 		if err := cmdIndex.Parse(flag.Args()[1:]); err != nil {
 			log.Fatalln(err)
 		}
-
-		if err := index(pRepoObj, cmdIndex.Args()); err != nil {
-			log.Fatalf("ошибка индексирования репозитория: %v\n", err)
+		// индексация репозитория
+		if err := index(repoPtr, cmdIndex.Args()); err != nil {
+			log.Fatalln("ошибка индексирования репозитория:", err)
 		}
+		// flag p: выгрузка в индекс-файл
 		if flagPopIndex {
-			// выгрузка данных в индекс-файл
-			goto DO_POPULATE
+			goto DOPOPULATE
 		}
 		break
-	DO_POPULATE:
+	DOPOPULATE:
 		fallthrough
 	// выгрузка данных индексации из БД в index.json[gz]
 	case "populate":
-		if err := populate(pRepoObj); err != nil {
-			log.Fatalf("ошибка выгрузки данных: %v\n", err)
+		if err := populate(repoPtr); err != nil {
+			log.Fatalln("ошибка выгрузки индекса:", err)
 		}
 	// активация/деактивация пакетов в репозитории
 	case "enable", "disable":
-		var disabled bool
+		disabled := false
 		cmdSetStatus := flag.NewFlagSet("setstatus", flag.ErrorHandling(1))
 		if err := cmdSetStatus.Parse(flag.Args()[1:]); err != nil {
 			log.Fatalln(err)
 		}
 		// наименования пакетов
-		packs := cmdSetStatus.Args()
-		if len(packs) == 0 {
+		packetsList := cmdSetStatus.Args()
+		if len(packetsList) == 0 {
 			fmt.Println("укажите по крайней мере один пакет")
 			return
 		}
 		if cmd == "disable" {
 			disabled = true
 		}
-		if err := setPacketStatus(pRepoObj, disabled, packs); err != nil {
+		if err := setPacketStatus(repoPtr, disabled, packetsList); err != nil {
 			log.Fatalf("ошибка установления статуса пакетов: %v", err)
 		}
 
@@ -125,7 +125,7 @@ func main() {
 	case "cleardb": // очистка БД от данных
 
 	case "status": // вывод информации о репозитории
-		if err := repoStatus(pRepoObj); err != nil {
+		if err := repoStatus(repoPtr); err != nil {
 			log.Fatalln(err)
 		}
 

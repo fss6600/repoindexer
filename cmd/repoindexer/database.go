@@ -5,16 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"os"
 	"path/filepath"
 
 	_ "github.com/mattn/go-sqlite3"
 )
 
 const fileDBName string = "index.db"
-
-//...
-//type dbObj
 
 // RepoObject объект репозитория с БД
 type RepoObject struct {
@@ -38,43 +34,43 @@ func (r *RepoObject) SetFullMode() {
 
 // OpenDB открывает подключение к БД
 func (r *RepoObject) OpenDB() error {
-	if !fileDbExists(r.repoPath) {
-		return errors.New("БД не инициализирована")
+	fp := dbPath(r.repoPath)
+	if !fileExists(fp) {
+		return errors.New("репозиторий не инициализирован")
 	}
-
-	db, err := getConnection(r.repoPath)
+	db, err := getConnection(fp)
 	if err != nil {
 		return err
 	}
-
 	r.db = db
 	return nil
 }
 
 // CloseDB закрывает DB соединение
 func (r *RepoObject) CloseDB() {
-	if err := r.db.Close(); err != nil {
-		log.Printf("ERROR: database close - %s\n", err)
+	if r.db != nil {
+		if err := r.db.Close(); err != nil {
+			log.Println("error database close:", err)
+		}
 	}
 }
 
 // initDB инициализирует файл DB
 func initDB(repoPath string) error {
-
-	if fileDbExists(repoPath) {
+	fp := dbPath(repoPath)
+	if fileExists(fp) {
 		fmt.Println("файл БД существует")
 		return nil
 	}
-
-	db, err := getConnection(repoPath)
+	db, err := getConnection(fp)
 	if err != nil {
 		return err
 	}
-
 	defer func() {
 		_ = db.Close()
 	}()
 
+	//todo: заменить на работу с моделями
 	if _, err := db.Exec("CREATE TABLE excludes(id INTEGER PRIMARY KEY AUTOINCREMENT, " +
 		"name VARCHAR NOT NULL UNIQUE);"); err != nil {
 		return err
@@ -83,20 +79,12 @@ func initDB(repoPath string) error {
 	return nil
 }
 
-//...
-func fileDbExists(repoPath string) bool {
-	fp := filepath.Join(repoPath, fileDBName)
-	_, err := os.Stat(fp)
-	switch err {
-	case nil:
-		return true
-	default:
-		return false
-	}
+// getConnection возвращает соединение с БД или ошибку
+func getConnection(fp string) (*sql.DB, error) {
+	return sql.Open("sqlite3", fp)
 }
 
-// getConnection возвращает соединение с БД или ошибку
-func getConnection(repoPath string) (*sql.DB, error) {
-	fp := filepath.Join(repoPath, fileDBName)
-	return sql.Open("sqlite3", fp)
+//...
+func dbPath(repoPath string) string {
+	return filepath.Join(repoPath, fileDBName)
 }
