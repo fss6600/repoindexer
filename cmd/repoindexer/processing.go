@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"io/ioutil"
+	"log"
 	"os"
 	"path/filepath"
 )
@@ -12,49 +13,49 @@ const (
 	//fnIndexName string = "index.gz"
 )
 
-// reglamentMode активирует/деактивирует режим регламента репозитория
-func reglamentMode(repoPath *string, mode *string) (string, error) {
+// setReglamentMode активирует/деактивирует режим регламента репозитория
+func setReglamentMode(repoPath, mode string) {
 	const (
 		reglOnMessage  string = "режим регламента активирован [on]"
 		reglOffMessage string = "режим регламента деактивирован [off]"
 	)
+	fRegl := filepath.Join(repoPath, fnReglament)
+	// проверка на наличие файла-флага, определение режима реглавмета
+	modeOn := fileExists(fRegl)
 
-	var fileExists bool = true
-
-	fileRegl := filepath.Join(*repoPath, fnReglament)
-	// проверка на наличие файла-флага
-	if _, err := os.Stat(fileRegl); os.IsNotExist(err) {
-		fileExists = false
-	}
-
-	switch *mode {
+	switch mode {
+	// вывод режима регламента
 	case "":
-		if fileExists {
-			return reglOnMessage, nil
+		if modeOn {
+			fmt.Println(reglOnMessage)
 		} else {
-			return reglOffMessage, nil
+			fmt.Println(reglOffMessage)
 		}
+	// активация режима регламента
 	case "on":
-		if fileExists {
-			owner, _ := ioutil.ReadFile(fileRegl)
-			return fmt.Sprintf("%s (%s)", reglOnMessage, string(owner)), nil
+		// регламент уже активирован - вывод сообщения и информации кто активировал
+		if modeOn {
+			owner, _ := ioutil.ReadFile(fRegl)
+			fmt.Println(reglOnMessage, string(owner))
+		// авктивация реглавмента с записью информации кто активировал
+		} else {
+			if err := ioutil.WriteFile(fRegl, taskOwnerInfo(), 0644); err != nil {
+				log.Fatal(err)
+			}
+			fmt.Println(reglOnMessage)
 		}
-
-		if err := ioutil.WriteFile(fileRegl, taskOwnerInfo(), 0644); err != nil {
-			return "", err
-		}
-		return reglOnMessage, nil
+	// деактивация режима реглавмента
 	case "off":
-		if fileExists {
-			if err := os.Remove(fileRegl); err != nil {
-				return "", err
+		// регламент активирован - удаляем файл
+		if modeOn {
+			if err := os.Remove(fRegl); err != nil {
+				log.Fatalln(err)
 			}
 		}
-		return reglOffMessage, nil
+		fmt.Println(reglOffMessage)
 	default:
-		return "", fmt.Errorf("неверный режим регламента: %s", mode)
+		fmt.Printf("неверный режим регламента: %s", mode)
 	}
-
 }
 
 func index(repo *RepoObject, packets []string) error {
@@ -92,5 +93,5 @@ func setPacketStatus(repo *RepoObject, setDisable bool, pack []string) error {
 
 // возвращает данные IP,.. инициатора работ в репозитории
 func taskOwnerInfo() []byte {
-	return []byte("127.0.0.1\n") //todo: добавить информацию о подключении
+	return []byte("127.0.0.1") //todo: добавить информацию о подключении
 }

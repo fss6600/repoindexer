@@ -9,30 +9,30 @@ import (
 )
 
 const version string = "0.0.1a"
+var repoPath string
+var flagVersion, flagFullMode, flagPopIndex bool
+
+func init() {
+	// обработка флагов и переменных
+	flag.StringVar(&repoPath, "repopath", "", "полный путь к репозиторию")
+	flag.BoolVar(&flagFullMode, "f", false, "режим полной индексации")
+	flag.BoolVar(&flagVersion, "v", false, "версия программы")
+	flag.BoolVar(&flagPopIndex, "p", false, "выгрузить данные в индекс-файл после индексации")
+	flag.Parse()
+}
 
 func main() {
-	var repoPath string
-	var getVersion, fullMode, popIndex bool
-
-	flag.StringVar(&repoPath, "repopath", "", "полный путь к репозиторию")
-	flag.BoolVar(&fullMode, "f", false, "режим полной индексации")
-	flag.BoolVar(&getVersion, "v", false, "версия программы")
-	flag.BoolVar(&popIndex, "p", false, "выгрузить данные в индекс-файл")
-	flag.Parse()
-
 	// вывод версии
-	if getVersion {
+	if flagVersion {
 		fmt.Printf("Версия: %v\n", version)
 		return
 	}
-
 	// проверка на наличие пути к репозиторию
 	if repoPath == "" {
 		fmt.Println("не указан путь к репозиторию")
 		// flag.PrintDefaults()
 		return
 	}
-
 	// проверка на наличие команды и последующая обработка
 	if len(flag.Args()) == 0 {
 		fmt.Println("не указана команда")
@@ -43,47 +43,41 @@ func main() {
 
 	// обработка команд, не требующих подключения к БД
 	switch cmd {
-	case "init": // инициализация репозитория
+	// инициализация репозитория
+	case "init":
 		if err := initDB(repoPath); err != nil {
 			log.Fatalf("ошибка при инициализации репозитория %v: %v", repoPath, err)
 		}
 		return
-	case "reglament": // on|off режим регламента
+	// on|off режим регламента
+	case "reglament":
 		var mode string
-
 		cmdRegl := flag.NewFlagSet("reglament", flag.ErrorHandling(1))
 		if err := cmdRegl.Parse(flag.Args()[1:]); err != nil {
 			log.Fatalln(err)
 		}
-
 		if len(cmdRegl.Args()) != 0 {
 			mode = cmdRegl.Arg(0)
 		}
-
-		if msg, err := reglamentMode(&repoPath, &mode); err != nil {
-			log.Fatalf("ERROR: %v\n", err)
-		} else {
-			fmt.Println(msg)
-		}
+		// установка режима регламента
+		setReglamentMode(repoPath, mode)
 		return
 	}
 
+	// инициализация и подключение к БД
 	pRepoObj := NewRepoObj(repoPath)
-
-	// подключение к БД
 	if err := pRepoObj.OpenDB(); err != nil {
 		log.Fatalf("ERROR: %s\n", err)
 	}
+	defer pRepoObj.CloseDB()
 
-	if fullMode {
+	if flagFullMode {
 		pRepoObj.SetFullMode()
 	}
 
-	// закрыть подключение при выходе из функции
-	defer pRepoObj.CloseDB()
-
 	switch cmd {
-	case "index": // индексация файлов репозитория с записью в БД
+	//индексация файлов репозитория с записью в БД
+	case "index":
 		cmdIndex := flag.NewFlagSet("index", flag.ErrorHandling(1))
 		if err := cmdIndex.Parse(flag.Args()[1:]); err != nil {
 			log.Fatalln(err)
@@ -92,36 +86,35 @@ func main() {
 		if err := index(pRepoObj, cmdIndex.Args()); err != nil {
 			log.Fatalf("ошибка индексирования репозитория: %v\n", err)
 		}
-		if popIndex {
-			goto DO_POPULATE // выгрузка данных в индекс-файл
+		if flagPopIndex {
+			// выгрузка данных в индекс-файл
+			goto DO_POPULATE
 		}
 		break
 	DO_POPULATE:
 		fallthrough
-	case "populate": // выгрузка данных индексации из БД в index.json[gz]
+	// выгрузка данных индексации из БД в index.json[gz]
+	case "populate":
 		if err := populate(pRepoObj); err != nil {
 			log.Fatalf("ошибка выгрузки данных: %v\n", err)
 		}
-
-	case "enable", "disable": // активация/деактивация пакетов в репозитории
-		var setDisable bool
+	// активация/деактивация пакетов в репозитории
+	case "enable", "disable":
+		var disabled bool
 		cmdSetStatus := flag.NewFlagSet("setstatus", flag.ErrorHandling(1))
 		if err := cmdSetStatus.Parse(flag.Args()[1:]); err != nil {
 			log.Fatalln(err)
 		}
-
+		// наименования пакетов
 		packs := cmdSetStatus.Args()
-
 		if len(packs) == 0 {
 			fmt.Println("укажите по крайней мере один пакет")
 			return
 		}
-
 		if cmd == "disable" {
-			setDisable = true
+			disabled = true
 		}
-
-		if err := setPacketStatus(pRepoObj, setDisable, packs); err != nil {
+		if err := setPacketStatus(pRepoObj, disabled, packs); err != nil {
 			log.Fatalf("ошибка установления статуса пакетов: %v", err)
 		}
 
