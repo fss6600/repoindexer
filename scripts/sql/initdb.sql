@@ -11,10 +11,10 @@ CREATE TABLE packages
     id    INTEGER PRIMARY KEY AUTOINCREMENT,
     name  VARCHAR     NOT NULL UNIQUE,
     hash  VARCHAR(40) NOT NULL,
-    alias TEXT,
-    stamp DATETIME    NOT NULL
+    alias TEXT
+--    stamp DATETIME    NOT NULL
 );
-CREATE UNIQUE INDEX idx
+CREATE UNIQUE INDEX idx_packages
     ON packages (name);
 
 -- файлы в пакетах
@@ -26,12 +26,12 @@ CREATE TABLE files
     size       INTEGER     NOT NULL,
     mdate      DATETIME    NOT NULL,
     hash       VARCHAR(40) NOT NULL,
-    stamp      DATETIME    NOT NULL,
+--    stamp      DATETIME    NOT NULL,
     FOREIGN KEY (package_id) REFERENCES packages (id)
         ON DELETE CASCADE
         ON UPDATE CASCADE
 );
-CREATE UNIQUE INDEX idx2
+CREATE UNIQUE INDEX idx_file_path
     ON files (path);
 
 -- информация о БД
@@ -49,7 +49,7 @@ CREATE TABLE aliases
     alias VARCHAR NOT NULL,
     name  VARCHAR NOT NULL
 );
-CREATE UNIQUE INDEX idx3
+CREATE UNIQUE INDEX idx_alias
     ON aliases (name, alias);
 
 -- заблокированные пакеты подсистем
