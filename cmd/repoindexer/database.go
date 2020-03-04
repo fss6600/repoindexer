@@ -69,10 +69,7 @@ func initDB(repoPath string) error {
 	defer func() {
 		_ = db.Close()
 	}()
-
-	//todo: заменить на работу с моделями
-	if _, err := db.Exec("CREATE TABLE excludes(id INTEGER PRIMARY KEY AUTOINCREMENT, " +
-		"name VARCHAR NOT NULL UNIQUE);"); err != nil {
+	if _, err := db.Exec(initSQL); err != nil {
 		return err
 	}
 	fmt.Println("репозиторий проинициализирован")
