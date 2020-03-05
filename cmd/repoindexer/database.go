@@ -38,7 +38,7 @@ func (r *RepoObject) OpenDB() error {
 	if !fileExists(fp) {
 		return errors.New("репозиторий не инициализирован")
 	}
-	db, err := getConnection(fp)
+	db, err := NewConnection(fp)
 	if err != nil {
 		return err
 	}
@@ -55,6 +55,16 @@ func (r *RepoObject) CloseDB() {
 	}
 }
 
+// BlockedPacks возвращает список заблокированных для индексации пакетов в репозитории
+func (r *RepoObject) BlockedPacks() []string {
+	return []string{"blocked packet"}
+}
+
+// ActivePacks возвращает список пакетов в репозитории, за исключением заблокированных
+func (r *RepoObject) ActivePacks() []string {
+	return []string{"pack1", "pack2"}
+}
+
 // initDB инициализирует файл DB
 func initDB(repoPath string) error {
 	fp := dbPath(repoPath)
@@ -62,7 +72,7 @@ func initDB(repoPath string) error {
 		fmt.Println("файл БД существует")
 		return nil
 	}
-	db, err := getConnection(fp)
+	db, err := NewConnection(fp)
 	if err != nil {
 		return err
 	}
@@ -76,8 +86,11 @@ func initDB(repoPath string) error {
 	return nil
 }
 
-// getConnection возвращает соединение с БД или ошибку
-func getConnection(fp string) (*sql.DB, error) {
+
+
+// functions
+// NewConnection возвращает соединение с БД или ошибку
+func NewConnection(fp string) (*sql.DB, error) {
 	return sql.Open("sqlite3", fp)
 }
 
