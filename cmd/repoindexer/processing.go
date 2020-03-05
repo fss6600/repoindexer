@@ -13,8 +13,8 @@ const (
 	//fnIndexName string = "index.gz"
 )
 
-// setReglamentMode активирует/деактивирует режим регламента репозитория
-func setReglamentMode(repoPath, mode string) {
+// SetReglamentMode активирует/деактивирует режим регламента репозитория
+func SetReglamentMode(repoPath, mode string) {
 	const (
 		reglOnMessage  string = "режим регламента активирован [on]"
 		reglOffMessage string = "режим регламента деактивирован [off]"
@@ -37,7 +37,7 @@ func setReglamentMode(repoPath, mode string) {
 		if modeOn {
 			owner, _ := ioutil.ReadFile(fRegl)
 			fmt.Println(reglOnMessage, string(owner))
-		// авктивация реглавмента с записью информации кто активировал
+			// авктивация реглавмента с записью информации кто активировал
 		} else {
 			if err := ioutil.WriteFile(fRegl, taskOwnerInfo(), 0644); err != nil {
 				log.Fatal(err)
@@ -58,34 +58,73 @@ func setReglamentMode(repoPath, mode string) {
 	}
 }
 
-func index(repo *RepoObject, packets []string) error {
-	if len(packets) == 0 {
-		fmt.Println("обработка всех пакетов")
-	} else {
-		for _, pack := range packets {
-			fmt.Printf("обработка пакета: %v\n", pack)
+// Index обработка и индексация пакетов в репозитории
+func Index(r *RepoObject, packs []string) error {
+	if len(packs) == 0 {
+		// get active packs list
+		packs = r.ActivePacks()
+	}
+
+	for _, pack := range packs {
+		if err := processPacketIndex(r, pack); err != nil {
+			return err
 		}
 	}
 	return nil
 }
 
-func populate(repo *RepoObject) error {
+func Populate(repo *RepoObject) error {
 	{
-		fmt.Println("выгрузка данных из БД в index файл")
+		fmt.Println("выгрузка данных из БД в Index файл")
 	}
 	return nil
 }
 
-func repoStatus(repo *RepoObject) error {
+func RepoStatus(repo *RepoObject) error {
 	fmt.Println("вывод информации о репозитории")
 	return nil
 }
 
-func setPacketStatus(repo *RepoObject, setDisable bool, pack []string) error {
+// SetPacketStatus активирует или блокирует пакет для индексации
+func SetPacketStatus(repo *RepoObject, setDisable bool, pack []string) error {
 	if setDisable {
 		fmt.Printf("деактивация пакетов: %s\n", pack)
 	} else {
 		fmt.Printf("активация пакетов: %s\n", pack)
+	}
+
+	return nil
+}
+
+// dbl - структура данных о файле в пакете в БД
+type dbl struct {
+	id    int
+	path  string
+	size  int
+	mdate int // todo: change to datetime
+}
+
+// processPacketIndex обрабатывает (индексирует) файлы в указанном пакете
+func processPacketIndex(r *RepoObject, pack string) error {
+	var (
+		fsi, dbi int      // счетчики для обхода списков
+		fsList   []string // список путей файлов в пакете в репозитории
+		dbList   []dbl    // список данных файлов в пакете из БД
+		fsp      string   // путь файла в репозитории
+		dbp      dbl      // данные о файле в БД
+	)
+
+	// получение списка файлов в пакете (path)
+	// получение списка с данными о файлах пакета из БД (id, path, size, mdate)
+
+	// todo пересмотреть алгоритм сравнения файлов
+
+	// цикл обработки данных
+	for {
+		fsp = fsList[fsi] // todo add error handle
+		dbp = dbList[dbi]
+
+		break
 	}
 
 	return nil

@@ -60,7 +60,7 @@ func main() {
 			mode = cmdRegl.Arg(0)
 		}
 		// установка режима регламента
-		setReglamentMode(repoPath, mode)
+		SetReglamentMode(repoPath, mode)
 		return
 	}
 
@@ -83,7 +83,7 @@ func main() {
 			log.Fatalln(err)
 		}
 		// индексация репозитория
-		if err := index(repoPtr, cmdIndex.Args()); err != nil {
+		if err := Index(repoPtr, cmdIndex.Args()); err != nil {
 			log.Fatalln("ошибка индексирования репозитория:", err)
 		}
 		// flag p: выгрузка в индекс-файл
@@ -93,9 +93,9 @@ func main() {
 		break
 	DOPOPULATE:
 		fallthrough
-	// выгрузка данных индексации из БД в index.json[gz]
-	case "populate":
-		if err := populate(repoPtr); err != nil {
+	// выгрузка данных индексации из БД в Index.json[gz]
+	case "Populate":
+		if err := Populate(repoPtr); err != nil {
 			log.Fatalln("ошибка выгрузки индекса:", err)
 		}
 	// активация/деактивация пакетов в репозитории
@@ -114,7 +114,7 @@ func main() {
 		if cmd == "disable" {
 			disabled = true
 		}
-		if err := setPacketStatus(repoPtr, disabled, packetsList); err != nil {
+		if err := SetPacketStatus(repoPtr, disabled, packetsList); err != nil {
 			log.Fatalf("ошибка установления статуса пакетов: %v", err)
 		}
 
@@ -125,7 +125,7 @@ func main() {
 	case "cleardb": // очистка БД от данных
 
 	case "status": // вывод информации о репозитории
-		if err := repoStatus(repoPtr); err != nil {
+		if err := RepoStatus(repoPtr); err != nil {
 			log.Fatalln(err)
 		}
 
