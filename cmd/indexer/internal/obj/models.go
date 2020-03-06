@@ -1,4 +1,4 @@
-package main
+package obj
 
 const initSQL = `
 -- Скрипт инициализации БД

@@ -1,74 +1,75 @@
-package main
+package obj
 
 import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/pmshoot/repoindexer/cmd/indexer/internal/proc"
 	"log"
 	"path/filepath"
 
 	_ "github.com/mattn/go-sqlite3"
 )
 
-const fileDBName string = "index.db"
+const fileDBName string = "index.DB"
 
-// RepoObject объект репозитория с БД
-type RepoObject struct {
-	repoPath string
-	db       *sql.DB
-	fullMode bool
+// Repo объект репозитория с БД
+type Repo struct {
+	RepoPath string
+	DB       *sql.DB
+	FullMode bool
 }
 
 // NewRepoObj возвращает объект repoObj
-func NewRepoObj(repoPath string) *RepoObject {
-	repo := new(RepoObject)
-	repo.repoPath = repoPath
+func NewRepoObj(repoPath string) *Repo {
+	repo := new(Repo)
+	repo.RepoPath = repoPath
 	return repo
 }
 
 // SetFullMode устанавливает режим полной индексации
-func (r *RepoObject) SetFullMode() {
-	r.fullMode = true
+func (r *Repo) SetFullMode() {
+	r.FullMode = true
 	fmt.Println("установлен режим полной индексации")
 }
 
 // OpenDB открывает подключение к БД
-func (r *RepoObject) OpenDB() error {
-	fp := dbPath(r.repoPath)
-	if !fileExists(fp) {
+func (r *Repo) OpenDB() error {
+	fp := dbPath(r.RepoPath)
+	if !proc.FileExists(fp) {
 		return errors.New("репозиторий не инициализирован")
 	}
 	db, err := NewConnection(fp)
 	if err != nil {
 		return err
 	}
-	r.db = db
+	r.DB = db
 	return nil
 }
 
 // CloseDB закрывает DB соединение
-func (r *RepoObject) CloseDB() {
-	if r.db != nil {
-		if err := r.db.Close(); err != nil {
-			log.Println("error database close:", err)
+func (r *Repo) CloseDB() {
+	if r.DB != nil {
+		if err := r.DB.Close(); err != nil {
+			log.Println("error obj close:", err)
 		}
 	}
 }
 
 // BlockedPacks возвращает список заблокированных для индексации пакетов в репозитории
-func (r *RepoObject) BlockedPacks() []string {
+func (r *Repo) BlockedPacks() []string {
 	return []string{"blocked packet"}
 }
 
 // ActivePacks возвращает список пакетов в репозитории, за исключением заблокированных
-func (r *RepoObject) ActivePacks() []string {
+func (r *Repo) ActivePacks() []string {
 	return []string{"pack1", "pack2"}
 }
 
-// initDB инициализирует файл DB
-func initDB(repoPath string) error {
+// InitDB инициализирует файл DB
+func InitDB(repoPath string) error {
 	fp := dbPath(repoPath)
-	if fileExists(fp) {
+	if proc.FileExists(fp) {
 		fmt.Println("файл БД существует")
 		return nil
 	}
