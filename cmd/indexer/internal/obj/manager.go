@@ -20,7 +20,8 @@ const fileDBName string = "index.DB"
 type Repo struct {
 	RepoPath string
 	DB       *sql.DB
-	FullMode bool
+	FullMode bool//?
+	disabledPacks []string
 }
 
 // Структура с данными о файле пакета в БД
@@ -68,22 +69,24 @@ func (r *Repo) CloseDB() {
 	}
 }
 
-// BlockedPacks возвращает список заблокированных для индексации пакетов в репозитории
-func (r *Repo) BlockedPacks() []string {
-	//todo add list from DB (disabled table)
-	return []string{"b_back"}
-}
-
 // ActivePacks возвращает список пакетов в репозитории, за исключением заблокированных
 func (r *Repo) ActivePacks() []string {
 	//todo add read pack from disk in repo
-	//todo check and exclude disabled packs from DB (disabled table)
-	return []string{
+	fl := []string{
 		//"aa_qwe",
 		"a_pack",
 		"b_pack",
 		"e_pack",
 	}
+	activeList := make([]string, len(fl))
+	for _, name := range fl {
+		if r.packIsBlocked(name) {
+			continue
+		} else {
+			activeList = append(activeList, name)
+		}
+	}
+	return activeList
 }
 
 // FilesPackRepo возвращает список файлов указанного пакета в репозитории
@@ -167,6 +170,30 @@ func (r *Repo) FilesPackDB(pack string) ([]FileInfo, error) {
 		fdataList = append(fdataList, *fd)
 	}
 	return fdataList, nil
+}
+
+// PrepareDisabledPacksList устанавливает список заблокированных пакетов репозитория
+func (r *Repo) PrepareDisabledPaksList() {
+	rows, err := r.DB.Query("SELECT name FROM excludes;")
+	if err != nil {
+		log.Fatalf("error select disabled packs: %v", err)
+	}
+	defer rows.Close()
+	var name string
+	for rows.Next() {
+		rows.Scan(&name)
+		r.disabledPacks = append(r.disabledPacks, name)
+	}
+}
+
+func (r *Repo) packIsBlocked(name string) bool {
+	for i := range r.disabledPacks {
+		fmt.Println("dsl check:", name)
+		if name == r.disabledPacks[i] {
+			return true
+		}
+	}
+	return false
 }
 
 // InitDB инициализирует файл DB

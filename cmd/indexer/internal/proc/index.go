@@ -10,11 +10,13 @@ import (
 
 // Index обработка и индексация пакетов в репозитории
 func Index(r *obj.Repo, packs []string) error {
+	r.PrepareDisabledPaksList() //
+
 	if len(packs) == 0 {
 		// get active packs list
 		packs = r.ActivePacks()
 	}
-
+	fmt.Println(packs)
 	for _, pack := range packs {
 		fmt.Println("[", pack, "]")
 		if err := processPackIndex(r, pack); err != nil {
@@ -27,6 +29,9 @@ func Index(r *obj.Repo, packs []string) error {
 // processPackIndex обрабатывает (индексирует) файлы в указанном пакете
 func processPackIndex(r *obj.Repo, pack string) error {
 	//todo: add check pack in disabled list - clean db then
+	//if pack == "" {
+	//	return errors.New("пустое имя пакета")
+	//}
 	fsl, err := r.FilesPackRepo(pack)
 	if err != nil {
 		return err
