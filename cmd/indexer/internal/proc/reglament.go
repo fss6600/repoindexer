@@ -2,6 +2,7 @@ package proc
 
 import (
 	"fmt"
+	"github.com/pmshoot/repoindexer/cmd/indexer/internal"
 	"io/ioutil"
 	"log"
 	"os"
@@ -18,7 +19,7 @@ func SetReglamentMode(repoPath, mode string) {
 	)
 	fRegl := filepath.Join(repoPath, fnReglament)
 	// проверка на наличие файла-флага, определение режима реглавмета
-	modeOn := FileExists(fRegl)
+	modeOn := internal.FileExists(fRegl)
 
 	switch mode {
 	// вывод режима регламента
@@ -36,7 +37,7 @@ func SetReglamentMode(repoPath, mode string) {
 			fmt.Println(reglOnMessage, string(owner))
 			// авктивация реглавмента с записью информации кто активировал
 		} else {
-			if err := ioutil.WriteFile(fRegl, TaskOwnerInfo(), 0644); err != nil {
+			if err := ioutil.WriteFile(fRegl, internal.TaskOwnerInfo(), 0644); err != nil {
 				log.Fatal(err)
 			}
 			fmt.Println(reglOnMessage)

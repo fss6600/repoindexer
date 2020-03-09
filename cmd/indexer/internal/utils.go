@@ -1,4 +1,4 @@
-package proc
+package internal
 
 import (
 	"fmt"
@@ -21,7 +21,7 @@ func TaskOwnerInfo() []byte {
 }
 
 
-func checkSums(fp string) ([]byte, error) {
+func CheckSums(fp string) ([]byte, error) {
 	fmt.Println(": check sums", fp)
 	return []byte{'e',1,'a',5,5,'d',2,'f'}, nil
 }
