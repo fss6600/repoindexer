@@ -30,9 +30,10 @@ CREATE TABLE files
     mdate      DATETIME    NOT NULL,
     hash       VARCHAR(40) NOT NULL,
 --    stamp      DATETIME    NOT NULL,
-    FOREIGN KEY (package_id) REFERENCES packages (id)
+    CONSTRAINT fk_files
+        FOREIGN KEY (package_id)
+        REFERENCES packages (id)
         ON DELETE CASCADE
-        ON UPDATE CASCADE
 );
 CREATE UNIQUE INDEX idx_file_path
     ON files (path);
@@ -61,4 +62,5 @@ CREATE TABLE excludes
     id   INTEGER PRIMARY KEY AUTOINCREMENT,
     name VARCHAR NOT NULL UNIQUE
 );
+PRAGMA foreign_keys=on;
 `

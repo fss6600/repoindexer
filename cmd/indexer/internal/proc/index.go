@@ -20,10 +20,10 @@ func Index(r *obj.Repo, packs []string) error {
 		// получает актуальные активные пакеты в репозитории
 		packs = r.ActivePacks()
 	} else {
-		// проверяем на наличие указанных пакетов в репозитории
+		// проверяем актуальность (правильность) указанных пакетов
 		for _, pack := range packs {
-			if err := r.CheckExists(pack); err != nil {
-				return err
+			if !r.IsActive(pack) {
+				return fmt.Errorf("пакет [ %v ] не найден в репозитории или заблокирован", pack)
 			}
 		}
 	}
@@ -38,7 +38,7 @@ func Index(r *obj.Repo, packs []string) error {
 		}
 	}
 	//todo: add check pack in disabled list - clean db then
-	r.Clean()
+	r.CleanPacks()
 	return nil
 }
 

@@ -208,7 +208,6 @@ func (r *Repo) FilesPackDB(pack string) ([]FileInfo, error) {
 
 func (r *Repo) packIsBlocked(name string) bool {
 	for _, fn := range r.DisabledPacks() {
-		fmt.Println("dsl check:", name)
 		if name == fn {
 			return true
 		}
@@ -217,17 +216,49 @@ func (r *Repo) packIsBlocked(name string) bool {
 }
 
 //...
-func (r *Repo) CheckExists(fn string) error {
+func (r *Repo) IsActive(pack string) bool {
 	for _, fp := range r.ActivePacks() {
-		if fp == fn {
-			return nil
+		if fp == pack {
+			return true
 		}
 	}
-	return fmt.Errorf("пакет [ %v ] не найден в репозитории или заблокирован", fn)
+	return false
 }
 
-func (r *Repo) Clean() {
+func (r *Repo) CleanPacks() {
 	fmt.Println("здесь будет очистка заблокированных пакетов из БД")
+	for _, pack := range r.packages() { // проход по списку пакетов в БД
+		if !r.IsActive(pack) {
+			r.removePack(pack)
+		}
+	}
+
+}
+
+func (r *Repo) packages() []string {
+	var packs []string
+	var name string
+	rows, _ := r.db.Query("SELECT name FROM packages ORDER BY name;")
+	defer rows.Close()
+	for rows.Next() {
+		_ = rows.Scan(&name)
+		packs = append(packs, name)
+	}
+	return packs
+}
+
+func (r *Repo) removePack(pack string) {
+
+	//todo : каскадное удаление записей из files при удалении пакета
+
+	res, err := r.db.Exec("DELETE FROM packages WHERE name=?;", pack)
+	if err != nil {
+		fmt.Println("error remove pack", pack)
+	}
+	if c, _ := res.RowsAffected(); c == 0 {
+		fmt.Println("должна быть удалена 1 запись: 0")
+	}
+	fmt.Println("удалено:", pack)
 }
 
 // InitDB инициализирует файл db
