@@ -18,19 +18,19 @@ const fileDBName string = "index.DB"
 
 // Repo объект репозитория с БД
 type Repo struct {
-	RepoPath string
-	DB       *sql.DB
-	FullMode bool//?
+	RepoPath      string
+	DB            *sql.DB
+	FullMode      bool //?
 	disabledPacks []string
 }
 
 // Структура с данными о файле пакета в БД
 type FileInfo struct {
-	Id int
-	Path  string // путь файла относительно корневой папки пакета
-	Size  int    // размер файла
-	MDate time.Time    // дата изменения
-	Hash  []byte // контрольная сумма
+	Id    int
+	Path  string    // путь файла относительно корневой папки пакета
+	Size  int       // размер файла
+	MDate time.Time // дата изменения
+	Hash  []byte    // контрольная сумма
 }
 
 // NewRepoObj возвращает объект repoObj
@@ -78,7 +78,7 @@ func (r *Repo) ActivePacks() []string {
 		"b_pack",
 		"e_pack",
 	}
-	activeList := make([]string, len(fl))
+	activeList := make([]string, 0)
 	for _, name := range fl {
 		if r.packIsBlocked(name) {
 			continue
@@ -92,13 +92,13 @@ func (r *Repo) ActivePacks() []string {
 // FilesPackRepo возвращает список файлов указанного пакета в репозитории
 func (r *Repo) FilesPackRepo(pack string) ([]string, error) {
 	path := filepath.Join(r.RepoPath, pack) // base Path repopath/packname
-	fList := make([]string,0,50) // reserve place for ~50 files
-	fpCh := make(chan string) // channel for filepath
-	erCh := make(chan error) // channel for error
-	unWanted, _ := regexp.Compile("(.*[Tt]humb\\.db)|(.*~.*)")
+	fList := make([]string, 0, 50)          // reserve place for ~50 files
+	fpCh := make(chan string)               // channel for filepath
+	erCh := make(chan error)                // channel for error
+	unWanted, _ := regexp.Compile("(.*[Tt]humb[s]?\\.db)|(.*~.*)")
 
 	//go walkPack(Path, fpCh, erCh)
-	go func (root string, fpCh chan<- string, erCh chan<- error) {
+	go func(root string, fpCh chan<- string, erCh chan<- error) {
 		err := filepath.Walk(root, func(fp string, info os.FileInfo, er error) error {
 			if er != nil {
 				// debug message: er
@@ -106,16 +106,16 @@ func (r *Repo) FilesPackRepo(pack string) ([]string, error) {
 			}
 			if info.IsDir() { // skip directory
 				return nil
-			} else if unWanted.MatchString(fp){ // skip unwanted file
+			} else if unWanted.MatchString(fp) { // skip unwanted file
 				//fmt.Println("skip unwanted:", fp) // todo add to log.debug
 				return nil
 			}
 			fp, _ = filepath.Rel(path, fp) // trim base Path repopath/packname
-			fpCh<- fp
+			fpCh <- fp
 			return nil
-			})
+		})
 		if err != nil {
-			erCh<- err
+			erCh <- err
 			return
 		}
 		close(fpCh)
