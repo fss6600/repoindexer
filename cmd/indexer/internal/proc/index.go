@@ -1,6 +1,7 @@
 package proc
 
 import (
+	"errors"
 	"fmt"
 	"github.com/pmshoot/repoindexer/cmd/indexer/internal"
 	"github.com/pmshoot/repoindexer/cmd/indexer/internal/obj"
@@ -18,6 +19,9 @@ func Index(r *obj.Repo, packs []string) error {
 	}
 	fmt.Println(packs)
 	for _, pack := range packs {
+		if pack == "" {
+			return errors.New("error: задано пустое имя пакета")
+		}
 		fmt.Println("[", pack, "]")
 		if err := processPackIndex(r, pack); err != nil {
 			return err
@@ -42,34 +46,35 @@ func processPackIndex(r *obj.Repo, pack string) error {
 	}
 
 	var (
-		fi, di int          //  counters
-		fsPath string       // file path on fs
-		dbData obj.FileInfo // db file object
-		changed bool // package has changes
+		fi, di  int          //  counters
+		fsPath  string       // file path on fs
+		dbData  obj.FileInfo // db file object
+		changed bool         // package has changes
 	)
 	fsLastInd := len(fsl) - 1
 	dbLastInd := len(dbl) - 1
 
 	//fmt.Println("FS:", fsLastInd, "; DB:", dbLastInd)
 
-	sort.Slice(fsl, func(i,j int) bool {return fsl[i] < fsl[j]})
-	sort.Slice(dbl, func(i,j int) bool {return dbl[i].Path < dbl[j].Path})
-
+	sort.Slice(fsl, func(i, j int) bool { return fsl[i] < fsl[j] })
+	sort.Slice(dbl, func(i, j int) bool { return dbl[i].Path < dbl[j].Path })
 
 	for {
 		if fi > fsLastInd && di > dbLastInd { // end both lists
 			break
 		}
-		if di > dbLastInd {  // no in DB
+		if di > dbLastInd { // no in DB
 			fsPath = fsl[fi]
 			fmt.Print(fsPath)
 			fmt.Print(": calculate sum/date; ")
 			fmt.Println(": add to DB")
-			fi++  //next path in FS list
-			if !changed {changed = true}
+			fi++ //next path in FS list
+			if !changed {
+				changed = true
+			}
 			continue
 		}
-		if fi > fsLastInd {  // not in FS
+		if fi > fsLastInd { // not in FS
 			dbData = dbl[di]
 			fmt.Println(dbData.Path, ": del from DB")
 			di++ // next file obj in DB list
@@ -80,7 +85,7 @@ func processPackIndex(r *obj.Repo, pack string) error {
 		dbData = dbl[di]
 
 		if fsPath == dbData.Path { // in FS, in DB
-			fmt.Print(fsPath,"=", dbData.Path,)
+			fmt.Print(fsPath, "=", dbData.Path)
 			_, err := internal.CheckSums(fsPath)
 			if err != nil {
 				log.Fatal(err)
@@ -92,7 +97,9 @@ func processPackIndex(r *obj.Repo, pack string) error {
 			fmt.Print(fsPath)
 			fmt.Print(": calculate sum/date; ")
 			fmt.Println(": add to DB")
-			if !changed {changed = true}
+			if !changed {
+				changed = true
+			}
 			fi++
 		} else if fsPath > dbData.Path { // not in FS, in DB
 			fmt.Println(dbData.Path, ": dell from DB")
