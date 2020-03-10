@@ -14,14 +14,15 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
-const fileDBName string = "index.DB"
+const fileDBName string = "index.db"
 
 // Repo объект репозитория с БД
 type Repo struct {
-	RepoPath      string
-	DB            *sql.DB
-	FullMode      bool //?
-	disabledPacks []string
+	path string
+	db   *sql.DB
+	//FullMode      bool //?
+	disPacks []string
+	actPacks []string
 }
 
 // Структура с данными о файле пакета в БД
@@ -34,67 +35,100 @@ type FileInfo struct {
 }
 
 // NewRepoObj возвращает объект repoObj
-func NewRepoObj(repoPath string) *Repo {
+func NewRepoObj(path string) *Repo {
 	repo := new(Repo)
-	repo.RepoPath = repoPath
+	repo.SetPath(path)
 	return repo
 }
 
-// SetFullMode устанавливает режим полной индексации
-func (r *Repo) SetFullMode() {
-	r.FullMode = true
-	fmt.Println("установлен режим полной индексации")
+//...
+func (r *Repo) SetPath(path string) {
+	if path == "" {
+		log.Fatalln("укажите путь к репозиторию")
+	}
+	r.path = path
 }
+
+//...
+func (r *Repo) Path() string {
+	return r.path
+}
+
+// SetFullMode устанавливает режим полной индексации
+//func (r *Repo) SetFullMode() {
+//	r.FullMode = true
+//	fmt.Println("установлен режим полной индексации")
+//}
 
 // OpenDB открывает подключение к БД
 func (r *Repo) OpenDB() error {
-	fp := dbPath(r.RepoPath)
+	fp := dbPath(r.path)
 	if !internal.FileExists(fp) {
 		return errors.New("репозиторий не инициализирован")
 	}
-	db, err := NewConnection(fp)
+	db, err := newConnection(fp)
 	if err != nil {
 		return err
 	}
-	r.DB = db
+	r.db = db
 	return nil
 }
 
-// CloseDB закрывает DB соединение
-func (r *Repo) CloseDB() {
-	if r.DB != nil {
-		if err := r.DB.Close(); err != nil {
-			log.Println("error obj close:", err)
+// Close закрывает db соединение
+func (r *Repo) Close() {
+	if r.db != nil {
+		if err := r.db.Close(); err != nil {
+			log.Println("error close db:", err)
 		}
 	}
 }
 
-// ActivePacks возвращает список пакетов в репозитории, за исключением заблокированных
+// ActivePacks кэширует и возвращает список пакетов в репозитории, за исключением заблокированных
 func (r *Repo) ActivePacks() []string {
-	//todo add read pack from disk in repo
-	fl := []string{
-		//"aa_qwe",
-		"a_pack",
-		"b_pack",
-		"e_pack",
-	}
-	activeList := make([]string, 0)
-	for _, name := range fl {
-		if r.packIsBlocked(name) {
-			continue
-		} else {
-			activeList = append(activeList, name)
+	if len(r.actPacks) == 0 {
+
+		//todo add read pack from disk in repo
+		fl := []string{
+			//"aa_qwe",
+			"a_pack",
+			"b_pack",
+			"e_pack",
+		}
+
+		for _, name := range fl {
+			if r.packIsBlocked(name) {
+				continue
+			} else {
+				r.actPacks = append(r.actPacks, name)
+			}
 		}
 	}
-	return activeList
+	return r.actPacks
+}
+
+// DisabledPacks кэширует и возвращает список заблокированных пакетов репозитория
+func (r *Repo) DisabledPacks() []string {
+	if len(r.disPacks) == 0 {
+		rows, err := r.db.Query("SELECT name FROM excludes;")
+		if err != nil {
+			log.Fatalf("error select disabled packs: %v", err)
+		}
+		defer rows.Close()
+		var name string
+		for rows.Next() {
+			_ = rows.Scan(&name)
+			r.disPacks = append(r.disPacks, name)
+		}
+	}
+	return r.disPacks
 }
 
 // FilesPackRepo возвращает список файлов указанного пакета в репозитории
 func (r *Repo) FilesPackRepo(pack string) ([]string, error) {
-	path := filepath.Join(r.RepoPath, pack) // base Path repopath/packname
-	fList := make([]string, 0, 50)          // reserve place for ~50 files
-	fpCh := make(chan string)               // channel for filepath
-	erCh := make(chan error)                // channel for error
+	path := filepath.Join(r.path, pack) // base Path repopath/packname
+	fList := make([]string, 0, 50)      // reserve place for ~50 files
+	fpCh := make(chan string)           // channel for filepath
+	erCh := make(chan error)            // channel for error
 	unWanted, _ := regexp.Compile("(.*[Tt]humb[s]?\\.db)|(.*~.*)")
 
 	//go walkPack(Path, fpCh, erCh)
@@ -138,24 +172,24 @@ func (r *Repo) FilesPackRepo(pack string) ([]string, error) {
 // FilesPackDB возвращвет список файлов указанного пакета имеющихся в БД
 func (r *Repo) FilesPackDB(pack string) ([]FileInfo, error) {
 	var id int64
-	err := r.DB.QueryRow("SELECT id FROM packages WHERE name=?;", pack).Scan(&id)
+	err := r.db.QueryRow("SELECT id FROM packages WHERE name=?;", pack).Scan(&id)
 	if err == sql.ErrNoRows {
-		res, err := r.DB.Exec("INSERT INTO packages VALUES (null, ?, '', null)", pack)
+		res, err := r.db.Exec("INSERT INTO packages VALUES (null, ?, '', null);", pack)
 		if err != nil {
-			log.Fatalf("create pack [ %v ] record in DB: %v", pack, err)
+			log.Fatalf("create pack [ %v ] record in db: %v", pack, err)
 		}
 		id, _ = res.LastInsertId()
 	}
 
 	cnt := 0
-	if err := r.DB.QueryRow("SELECT COUNT(*) FROM FILES WHERE package_id=?;", id).Scan(&cnt); err != nil {
+	if err := r.db.QueryRow("SELECT COUNT(*) FROM FILES WHERE package_id=?;", id).Scan(&cnt); err != nil {
 		return nil, err
 	}
 	if cnt == 0 {
 		return []FileInfo{}, nil
 	}
 
-	rows, err := r.DB.Query("SELECT id, path, size, mdate, hash FROM files WHERE package_id=?", id)
+	rows, err := r.db.Query("SELECT id, path, size, mdate, hash FROM files WHERE package_id=?;", id)
 	if err != nil {
 		return nil, err
 	}
@@ -172,38 +206,38 @@ func (r *Repo) FilesPackDB(pack string) ([]FileInfo, error) {
 	return fdataList, nil
 }
 
-// PrepareDisabledPacksList устанавливает список заблокированных пакетов репозитория
-func (r *Repo) PrepareDisabledPaksList() {
-	rows, err := r.DB.Query("SELECT name FROM excludes;")
-	if err != nil {
-		log.Fatalf("error select disabled packs: %v", err)
-	}
-	defer rows.Close()
-	var name string
-	for rows.Next() {
-		rows.Scan(&name)
-		r.disabledPacks = append(r.disabledPacks, name)
-	}
-}
-
 func (r *Repo) packIsBlocked(name string) bool {
-	for i := range r.disabledPacks {
+	for _, fn := range r.DisabledPacks() {
 		fmt.Println("dsl check:", name)
-		if name == r.disabledPacks[i] {
+		if name == fn {
 			return true
 		}
 	}
 	return false
 }
 
-// InitDB инициализирует файл DB
-func InitDB(repoPath string) error {
-	fp := dbPath(repoPath)
+//...
+func (r *Repo) CheckExists(fn string) error {
+	for _, fp := range r.ActivePacks() {
+		if fp == fn {
+			return nil
+		}
+	}
+	return fmt.Errorf("пакет [ %v ] не найден в репозитории или заблокирован", fn)
+}
+
+func (r *Repo) Clean() {
+	fmt.Println("здесь будет очистка заблокированных пакетов из БД")
+}
+
+// InitDB инициализирует файл db
+func InitDB(path string) error {
+	fp := dbPath(path)
 	if internal.FileExists(fp) {
 		fmt.Println("файл БД существует")
 		return nil
 	}
-	db, err := NewConnection(fp)
+	db, err := newConnection(fp)
 	if err != nil {
 		return err
 	}
@@ -217,8 +251,8 @@ func InitDB(repoPath string) error {
 	return nil
 }
 
-// NewConnection возвращает соединение с БД или ошибку
-func NewConnection(fp string) (*sql.DB, error) {
+// newConnection возвращает соединение с БД или ошибку
+func newConnection(fp string) (*sql.DB, error) {
 	return sql.Open("sqlite3", fp)
 }
 

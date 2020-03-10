@@ -11,11 +11,21 @@ import (
 
 // Index обработка и индексация пакетов в репозитории
 func Index(r *obj.Repo, packs []string) error {
-	r.PrepareDisabledPaksList() //
+	//r.PrepareDisabledPaksList() //
+
+	//asd  := len([]string{}) == 0
+	//fmt.Println(asd)
 
 	if len(packs) == 0 {
-		// get active packs list
+		// получает актуальные активные пакеты в репозитории
 		packs = r.ActivePacks()
+	} else {
+		// проверяем на наличие указанных пакетов в репозитории
+		for _, pack := range packs {
+			if err := r.CheckExists(pack); err != nil {
+				return err
+			}
+		}
 	}
 	fmt.Println(packs)
 	for _, pack := range packs {
@@ -27,34 +37,36 @@ func Index(r *obj.Repo, packs []string) error {
 			return err
 		}
 	}
+	//todo: add check pack in disabled list - clean db then
+	r.Clean()
 	return nil
 }
 
 // processPackIndex обрабатывает (индексирует) файлы в указанном пакете
 func processPackIndex(r *obj.Repo, pack string) error {
-	//todo: add check pack in disabled list - clean db then
-	//if pack == "" {
-	//	return errors.New("пустое имя пакета")
-	//}
-	fsl, err := r.FilesPackRepo(pack)
-	if err != nil {
-		return err
-	}
-	dbl, err := r.FilesPackDB(pack)
-	if err != nil {
-		return err
-	}
-
 	var (
+		fsl     []string       // список файлов пакета в репозитории
+		dbl     []obj.FileInfo // список файлов пакета в БД
+		err     error
 		fi, di  int          //  counters
 		fsPath  string       // file path on fs
 		dbData  obj.FileInfo // db file object
 		changed bool         // package has changes
 	)
+
+	fsl, err = r.FilesPackRepo(pack)
+	if err != nil {
+		return err
+	}
+	dbl, err = r.FilesPackDB(pack)
+	if err != nil {
+		return err
+	}
+
 	fsLastInd := len(fsl) - 1
 	dbLastInd := len(dbl) - 1
 
-	//fmt.Println("FS:", fsLastInd, "; DB:", dbLastInd)
+	//fmt.Println("FS:", fsLastInd, "; db:", dbLastInd)
 
 	sort.Slice(fsl, func(i, j int) bool { return fsl[i] < fsl[j] })
 	sort.Slice(dbl, func(i, j int) bool { return dbl[i].Path < dbl[j].Path })
@@ -63,11 +75,11 @@ func processPackIndex(r *obj.Repo, pack string) error {
 		if fi > fsLastInd && di > dbLastInd { // end both lists
 			break
 		}
-		if di > dbLastInd { // no in DB
+		if di > dbLastInd { // no in db
 			fsPath = fsl[fi]
 			fmt.Print(fsPath)
 			fmt.Print(": calculate sum/date; ")
-			fmt.Println(": add to DB")
+			fmt.Println(": add to db")
 			fi++ //next path in FS list
 			if !changed {
 				changed = true
@@ -76,15 +88,15 @@ func processPackIndex(r *obj.Repo, pack string) error {
 		}
 		if fi > fsLastInd { // not in FS
 			dbData = dbl[di]
-			fmt.Println(dbData.Path, ": del from DB")
-			di++ // next file obj in DB list
+			fmt.Println(dbData.Path, ": del from db")
+			di++ // next file obj in db list
 			continue
 		}
 
 		fsPath = fsl[fi]
 		dbData = dbl[di]
 
-		if fsPath == dbData.Path { // in FS, in DB
+		if fsPath == dbData.Path { // in FS, in db
 			fmt.Print(fsPath, "=", dbData.Path)
 			_, err := internal.CheckSums(fsPath)
 			if err != nil {
@@ -93,16 +105,16 @@ func processPackIndex(r *obj.Repo, pack string) error {
 			fi++
 			di++
 
-		} else if fsPath < dbData.Path { // in FS, not in DB
+		} else if fsPath < dbData.Path { // in FS, not in db
 			fmt.Print(fsPath)
 			fmt.Print(": calculate sum/date; ")
-			fmt.Println(": add to DB")
+			fmt.Println(": add to db")
 			if !changed {
 				changed = true
 			}
 			fi++
-		} else if fsPath > dbData.Path { // not in FS, in DB
-			fmt.Println(dbData.Path, ": dell from DB")
+		} else if fsPath > dbData.Path { // not in FS, in db
+			fmt.Println(dbData.Path, ": dell from db")
 			di++
 		} else {
 			log.Fatal("wrong")

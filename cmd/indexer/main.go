@@ -11,6 +11,7 @@ import (
 )
 
 const version string = "0.0.1a"
+
 var repoPath string
 var flagVersion, flagFullMode, flagPopIndex bool
 
@@ -71,11 +72,11 @@ func main() {
 	if err := repoPtr.OpenDB(); err != nil {
 		log.Fatalln(err)
 	}
-	defer repoPtr.CloseDB()
+	defer repoPtr.Close()
 
-	if flagFullMode {
-		repoPtr.SetFullMode()
-	}
+	//if flagFullMode {
+	//	repoPtr.SetFullMode()
+	//}
 
 	switch cmd {
 	//индексация файлов репозитория с записью в БД
@@ -96,7 +97,7 @@ func main() {
 	DOPOPULATE:
 		fallthrough
 	// выгрузка данных индексации из БД в Index.json[gz]
-	case "Populate":
+	case "populate":
 		if err := proc.Populate(repoPtr); err != nil {
 			log.Fatalln("ошибка выгрузки индекса:", err)
 		}
