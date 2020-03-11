@@ -4,12 +4,13 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"github.com/pmshoot/repoindexer/cmd/indexer/internal"
 	"log"
 	"os"
 	"path/filepath"
 	"regexp"
 	"time"
+
+	"github.com/pmshoot/repoindexer/cmd/indexer/internal"
 
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -268,6 +269,33 @@ func (r *Repo) AddFile(id int64, pack string, fPath string) error { // todo run 
 	return nil
 }
 
+//..
+func (r *Repo) ChangedFile(pack, fsPath string, dbData FileInfo) (bool, error) {
+	fp := filepath.Join(r.path, pack, fsPath)
+	fInfo, err := os.Stat(fp)
+	if err != nil {
+		return false, err
+	}
+	//fmt.Println(fInfo.ModTime().Unix(), fInfo.ModTime().UnixNano())
+	if fInfo.Size() == dbData.Size && fInfo.ModTime() == dbData.MDate {
+		return false, nil
+	}
+
+	hash, err := internal.HashSumFile(fp)
+	if err != nil {
+		return false, err
+	}
+	fmt.Println("wrong")
+	if res, err := r.stmtUpdFile.Exec(fInfo.Size(), fInfo.ModTime(), hash, dbData.Id); err != nil {
+		return false, fmt.Errorf("stmtUpdFile error: %v", err)
+	} else {
+		if ret, _ := res.RowsAffected(); ret == 0 {
+			return false, fmt.Errorf("stmtUpdFile error: no rows affected in fact")
+		}
+		return true, nil
+	}
+}
+
 //...
 func (r *Repo) RemoveFile(id int64) error {
 	if res, err := r.stmtDelFile.Exec(id); err != nil {
@@ -329,7 +357,7 @@ func (r *Repo) SetPrepare() (err error) {
 		return err
 	}
 	//
-	r.stmtUpdFile, err = r.db.Prepare("UPDATE files SET size=?, mdate=?, hash=? WHERE ID=?;")
+	r.stmtUpdFile, err = r.db.Prepare("UPDATE files SET size=?, mdate=?, hash=? WHERE id=?;")
 	if err != nil {
 		return err
 	}

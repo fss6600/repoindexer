@@ -3,10 +3,10 @@ package proc
 import (
 	"errors"
 	"fmt"
-	"github.com/pmshoot/repoindexer/cmd/indexer/internal"
-	"github.com/pmshoot/repoindexer/cmd/indexer/internal/obj"
 	"log"
 	"sort"
+
+	"github.com/pmshoot/repoindexer/cmd/indexer/internal/obj"
 )
 
 // Index обработка и индексация пакетов в репозитории
@@ -79,7 +79,7 @@ func processPackIndex(r *obj.Repo, pack string) error {
 			if err := r.AddFile(packID, pack, fsPath); err != nil {
 				return err
 			}
-			fmt.Println(dbData.Path, "- добавлена запись в БД")
+			fmt.Println("+", fsPath)
 			fsInd++ //next path in FS list
 			if !changed {
 				changed = true
@@ -92,7 +92,7 @@ func processPackIndex(r *obj.Repo, pack string) error {
 			if err := r.RemoveFile(dbData.Id); err != nil {
 				return err
 			}
-			fmt.Println(dbData.Path, "- удалена запись в БД")
+			fmt.Println("-", dbData.Path)
 			dbInd++ // next file obj in db list
 			continue
 		}
@@ -102,10 +102,12 @@ func processPackIndex(r *obj.Repo, pack string) error {
 
 		// сверка данных о файле в БД и в репозитории
 		if fsPath == dbData.Path { // in FS, in db
-			fmt.Print(fsPath, "=", dbData.Path)
-			_, err := internal.CheckSums(fsPath)
+			res, err := r.ChangedFile(pack, fsPath, dbData)
 			if err != nil {
-				log.Fatal(err)
+				return fmt.Errorf("error compare files: %v", err)
+			}
+			if res {
+				fmt.Println(".", dbData.Path)
 			}
 			fsInd++
 			dbInd++
@@ -115,7 +117,7 @@ func processPackIndex(r *obj.Repo, pack string) error {
 			if err := r.AddFile(packID, pack, fsPath); err != nil {
 				return err
 			}
-			fmt.Println(dbData.Path, "- добавлена запись в БД")
+			fmt.Println("+", fsPath)
 			if !changed {
 				changed = true
 			}
@@ -125,7 +127,7 @@ func processPackIndex(r *obj.Repo, pack string) error {
 			if err := r.RemoveFile(dbData.Id); err != nil {
 				return err
 			}
-			fmt.Println(dbData.Path, "- удалена запись в БД")
+			fmt.Println("-", dbData.Path)
 			dbInd++
 		} else {
 			log.Fatal("wrong")

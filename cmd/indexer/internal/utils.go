@@ -1,7 +1,6 @@
 package internal
 
 import (
-	"fmt"
 	"os"
 )
 
@@ -20,8 +19,8 @@ func TaskOwnerInfo() []byte {
 }
 
 func CheckSums(fp string) ([]byte, error) {
-	fmt.Println(": check sums", fp)
-	return []byte{'e', 1, 'a', 5, 5, 'd', 2, 'f'}, nil
+	//fmt.Println(": check sums", fp)
+	return []byte{}, nil
 }
 
 func HashSumFile(fp string) (uint, error) {
