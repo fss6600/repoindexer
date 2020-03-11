@@ -21,17 +21,20 @@ type Repo struct {
 	path string
 	db   *sql.DB
 	//FullMode      bool //?
-	disPacks []string
-	actPacks []string
+	disPacks    []string  // список заблокированных пакетов
+	actPacks    []string  // список активных (актуальных) пакетов
+	stmtAddFile *sql.Stmt // предустановка запроса на добавление данных файла пакета в БД
+	stmtDelFile *sql.Stmt // предустановка запроса на удаление данных файла пакетав БД
+	stmtUpdFile *sql.Stmt // предустановка запроса на изменение данных файла пакета в БД
 }
 
 // Структура с данными о файле пакета в БД
 type FileInfo struct {
-	Id    int
+	Id    int64
 	Path  string    // путь файла относительно корневой папки пакета
-	Size  int       // размер файла
+	Size  int64     // размер файла
 	MDate time.Time // дата изменения
-	Hash  []byte    // контрольная сумма
+	Hash  uint      // контрольная сумма
 }
 
 // NewRepoObj возвращает объект repoObj
@@ -80,6 +83,15 @@ func (r *Repo) OpenDB() error {
 
 // Close закрывает db соединение
 func (r *Repo) Close() {
+	if r.stmtAddFile != nil {
+		_ = r.stmtAddFile.Close()
+	}
+	if r.stmtDelFile != nil {
+		_ = r.stmtDelFile.Close()
+	}
+	if r.stmtUpdFile != nil {
+		_ = r.stmtUpdFile.Close()
+	}
 	if r.db != nil {
 		if err := r.db.Close(); err != nil {
 			log.Println("error close db:", err)
@@ -215,6 +227,7 @@ func (r *Repo) FilesPackDB(id int64) ([]FileInfo, error) {
 	return fdataList, nil
 }
 
+//...
 func (r *Repo) packIsBlocked(name string) bool {
 	for _, fn := range r.DisabledPacks() {
 		if name == fn {
@@ -234,21 +247,51 @@ func (r *Repo) IsActive(pack string) bool {
 	return false
 }
 
-func (r *Repo) RemoveFile(id int) {
-
+//...
+func (r *Repo) AddFile(id int64, pack string, fPath string) error { // todo run in go
+	fp := filepath.Join(r.path, pack, fPath)
+	fInfo, err := os.Stat(fp)
+	if err != nil {
+		return err
+	}
+	hash, err := internal.HashSumFile(fp)
+	if err != nil {
+		return err
+	}
+	if res, err := r.stmtAddFile.Exec(id, fPath, fInfo.Size(), fInfo.ModTime(), hash); err != nil {
+		return fmt.Errorf("stmtAddFile error: %v", err)
+	} else {
+		if ret, _ := res.RowsAffected(); ret == 0 {
+			return fmt.Errorf("stmtAddFile error: no rows added in fact")
+		}
+	}
+	return nil
 }
 
+//...
+func (r *Repo) RemoveFile(id int64) error {
+	if res, err := r.stmtDelFile.Exec(id); err != nil {
+		return fmt.Errorf("stmtDelFile error: %v", err)
+	} else {
+		if ret, _ := res.RowsAffected(); ret == 0 {
+			return fmt.Errorf("stmtDelFile error: no rows added in fact")
+		}
+	}
+	return nil
+}
+
+//...
 func (r *Repo) CleanPacks() {
 	//fmt.Println("очистка заблокированных пакетов из БД")
 	for _, pack := range r.packages() { // проход по списку пакетов в БД
 		if !r.IsActive(pack) {
-			//r.removePack(pack)
-			fmt.Println(pack, "removed")
+			r.removePack(pack)
 		}
 	}
 
 }
 
+//...
 func (r *Repo) packages() []string {
 	var packs []string
 	var name string
@@ -261,6 +304,7 @@ func (r *Repo) packages() []string {
 	return packs
 }
 
+//...
 func (r *Repo) removePack(pack string) {
 	res, err := r.db.Exec("DELETE FROM packages WHERE name=?;", pack)
 	if err != nil {
@@ -270,6 +314,26 @@ func (r *Repo) removePack(pack string) {
 		fmt.Println("должна быть удалена 1 запись: 0")
 	}
 	fmt.Println("удалено:", pack)
+}
+
+//...
+func (r *Repo) SetPrepare() (err error) {
+	//
+	r.stmtAddFile, err = r.db.Prepare("INSERT INTO files (package_id, path, size, mdate, hash) VALUES (?, ?, ?, ?, ?);")
+	if err != nil {
+		return err
+	}
+	//
+	r.stmtDelFile, err = r.db.Prepare("DELETE FROM files WHERE id=?;")
+	if err != nil {
+		return err
+	}
+	//
+	r.stmtUpdFile, err = r.db.Prepare("UPDATE files SET size=?, mdate=?, hash=? WHERE ID=?;")
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 // InitDB инициализирует файл db

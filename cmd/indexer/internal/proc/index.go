@@ -10,7 +10,7 @@ import (
 )
 
 // Index обработка и индексация пакетов в репозитории
-func Index(r *obj.Repo, packs []string) error {
+func Index(r *obj.Repo, packs []string) (err error) {
 	if len(packs) == 0 {
 		// получает актуальные активные пакеты в репозитории
 		packs = r.ActivePacks()
@@ -23,17 +23,21 @@ func Index(r *obj.Repo, packs []string) error {
 		}
 	}
 	//fmt.Println(packs)
+	if err = r.SetPrepare(); err != nil {
+		return err
+	}
+
 	for _, pack := range packs {
 		if pack == "" {
 			return errors.New("error: задано пустое имя пакета")
 		}
 		fmt.Println("[", pack, "]")
-		if err := processPackIndex(r, pack); err != nil {
+		if err = processPackIndex(r, pack); err != nil {
 			return err
 		}
 	}
 	r.CleanPacks()
-	return nil
+	return
 }
 
 // processPackIndex обрабатывает (индексирует) файлы в указанном пакете
@@ -44,7 +48,7 @@ func processPackIndex(r *obj.Repo, pack string) error {
 		dbList       []obj.FileInfo // список файлов пакета в БД
 		err          error
 		fsInd, dbInd int          //  counters
-		fsData       string       // file path on fs
+		fsPath       string       // file path on fs
 		dbData       obj.FileInfo // db file object
 		changed      bool         // package has changes
 	)
@@ -61,55 +65,67 @@ func processPackIndex(r *obj.Repo, pack string) error {
 	fsMaxInd := len(fsList) - 1
 	dbMaxInd := len(dbList) - 1
 
-	//fmt.Println("FS:", fsMaxInd, "; db:", dbMaxInd)
-
 	sort.Slice(fsList, func(i, j int) bool { return fsList[i] < fsList[j] })
 	sort.Slice(dbList, func(i, j int) bool { return dbList[i].Path < dbList[j].Path })
 
 	for {
+		// завершили обход списков
 		if fsInd > fsMaxInd && dbInd > dbMaxInd { // end both lists
 			break
 		}
-		if dbInd > dbMaxInd { // no in db
-			fsData = fsList[fsInd]
-			fmt.Print(": calculate sum/date; ")
-			fmt.Println(":1: add to db")
+		if dbInd > dbMaxInd { // no in BD: add file to BD
+			// добавляем запись о файле в БД
+			fsPath = fsList[fsInd]
+			if err := r.AddFile(packID, pack, fsPath); err != nil {
+				return err
+			}
+			fmt.Println(dbData.Path, "- добавлена запись в БД")
 			fsInd++ //next path in FS list
 			if !changed {
 				changed = true
 			}
 			continue
 		}
+		// удаляем запись о файле из БД
 		if fsInd > fsMaxInd { // not in FS
 			dbData = dbList[dbInd]
-			fmt.Print("dbData: ", dbData.Path, ":\t")
-			fmt.Println(dbData.Path, ":1: del from db")
+			if err := r.RemoveFile(dbData.Id); err != nil {
+				return err
+			}
+			fmt.Println(dbData.Path, "- удалена запись в БД")
 			dbInd++ // next file obj in db list
 			continue
 		}
 
-		fsData = fsList[fsInd]
+		fsPath = fsList[fsInd]
 		dbData = dbList[dbInd]
 
-		if fsData == dbData.Path { // in FS, in db
-			fmt.Print(fsData, "=", dbData.Path)
-			_, err := internal.CheckSums(fsData)
+		// сверка данных о файле в БД и в репозитории
+		if fsPath == dbData.Path { // in FS, in db
+			fmt.Print(fsPath, "=", dbData.Path)
+			_, err := internal.CheckSums(fsPath)
 			if err != nil {
 				log.Fatal(err)
 			}
 			fsInd++
 			dbInd++
 
-		} else if fsData < dbData.Path { // in FS, not in db
-			fmt.Print(fsData)
-			fmt.Print(": calculate sum/date; ")
-			fmt.Println(":2: add to db")
+		} else if fsPath < dbData.Path { // in FS, not in db: add file to BD
+			// добавляем запись о файле в БД
+			if err := r.AddFile(packID, pack, fsPath); err != nil {
+				return err
+			}
+			fmt.Println(dbData.Path, "- добавлена запись в БД")
 			if !changed {
 				changed = true
 			}
 			fsInd++
-		} else if fsData > dbData.Path { // not in FS, in db
-			fmt.Println(dbData.Path, ":2: dell from db")
+			// удаляем запись о файле из БД
+		} else if fsPath > dbData.Path { // not in FS, in db
+			if err := r.RemoveFile(dbData.Id); err != nil {
+				return err
+			}
+			fmt.Println(dbData.Path, "- удалена запись в БД")
 			dbInd++
 		} else {
 			log.Fatal("wrong")
