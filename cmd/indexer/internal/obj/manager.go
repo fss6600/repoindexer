@@ -103,7 +103,7 @@ func (r *Repo) Close() {
 func (r *Repo) PackageID(pack string) (id int64) {
 	err := r.db.QueryRow("SELECT id FROM packages WHERE name=?;", pack).Scan(&id)
 	if err == sql.ErrNoRows {
-		res, err := r.db.Exec("INSERT INTO packages VALUES (null, ?, '', null);", pack)
+		res, err := r.db.Exec("INSERT INTO packages ('name', 'hash') VALUES (?, 0)", pack)
 		if err != nil {
 			log.Fatalf("create pack [ %v ] record in db: %v", pack, err)
 		}
@@ -336,7 +336,8 @@ func (r *Repo) removePack(pack string) {
 //...
 func (r *Repo) SetPrepare() (err error) {
 	//
-	r.stmtAddFile, err = r.db.Prepare("INSERT INTO files (package_id, path, size, mdate, hash) VALUES (?, ?, ?, ?, ?);")
+	r.stmtAddFile, err = r.db.Prepare("INSERT INTO files ('package_id', 'path', 'size', 'mdate', 'hash')" +
+		" VALUES (?, ?, ?, ?, ?);")
 	if err != nil {
 		return err
 	}

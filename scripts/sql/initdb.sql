@@ -10,8 +10,7 @@ CREATE TABLE packages
 (
     id    INTEGER PRIMARY KEY AUTOINCREMENT,
     name  VARCHAR     NOT NULL UNIQUE,
-    hash  VARCHAR(40) NOT NULL,
-    alias TEXT
+    hash  VARCHAR(40) NOT NULL
 );
 CREATE UNIQUE INDEX idx_packages
     ON packages (name);
@@ -29,7 +28,7 @@ CREATE TABLE files
         ON DELETE CASCADE
         ON UPDATE CASCADE
 );
-CREATE UNIQUE INDEX idx_file_path
+CREATE INDEX idx_file_path
     ON files (path);
 
 -- информация о БД
@@ -43,9 +42,8 @@ CREATE TABLE info
 -- псевдонимы пакетов подсистем
 CREATE TABLE aliases
 (
-    id    INTEGER PRIMARY KEY AUTOINCREMENT,
-    alias VARCHAR NOT NULL,
-    name  VARCHAR NOT NULL
+    alias VARCHAR NOT NULL UNIQUE ,
+    name  VARCHAR NOT NULL UNIQUE
 );
 CREATE UNIQUE INDEX idx_alias
     ON aliases (name, alias);
@@ -53,7 +51,6 @@ CREATE UNIQUE INDEX idx_alias
 -- заблокированные пакеты подсистем
 CREATE TABLE excludes
 (
-    id   INTEGER PRIMARY KEY AUTOINCREMENT,
     name VARCHAR NOT NULL UNIQUE
 );
 
