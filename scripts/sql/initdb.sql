@@ -23,7 +23,7 @@ CREATE TABLE files
     package_id INTEGER     NOT NULL,
     path       VARCHAR     NOT NULL,
     size       INTEGER     NOT NULL,
-    mdate      DATETIME    NOT NULL,
+    mdate      INTEGER     NOT NULL,
     hash       VARCHAR(40) NOT NULL,
     FOREIGN KEY (package_id) REFERENCES packages (id)
         ON DELETE CASCADE

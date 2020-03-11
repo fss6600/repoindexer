@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"time"
 
 	"github.com/pmshoot/repoindexer/cmd/indexer/internal"
 
@@ -32,10 +31,10 @@ type Repo struct {
 // Структура с данными о файле пакета в БД
 type FileInfo struct {
 	Id    int64
-	Path  string    // путь файла относительно корневой папки пакета
-	Size  int64     // размер файла
-	MDate time.Time // дата изменения
-	Hash  uint      // контрольная сумма
+	Path  string // путь файла относительно корневой папки пакета
+	Size  int64  // размер файла
+	MDate int64  // дата изменения
+	Hash  uint   // контрольная сумма
 }
 
 // NewRepoObj возвращает объект repoObj
@@ -259,7 +258,7 @@ func (r *Repo) AddFile(id int64, pack string, fPath string) error { // todo run 
 	if err != nil {
 		return err
 	}
-	if res, err := r.stmtAddFile.Exec(id, fPath, fInfo.Size(), fInfo.ModTime(), hash); err != nil {
+	if res, err := r.stmtAddFile.Exec(id, fPath, fInfo.Size(), fInfo.ModTime().UnixNano(), hash); err != nil {
 		return fmt.Errorf("stmtAddFile error: %v", err)
 	} else {
 		if ret, _ := res.RowsAffected(); ret == 0 {
@@ -277,7 +276,7 @@ func (r *Repo) ChangedFile(pack, fsPath string, dbData FileInfo) (bool, error) {
 		return false, err
 	}
 	//fmt.Println(fInfo.ModTime().Unix(), fInfo.ModTime().UnixNano())
-	if fInfo.Size() == dbData.Size && fInfo.ModTime() == dbData.MDate {
+	if fInfo.Size() == dbData.Size && fInfo.ModTime().UnixNano() == dbData.MDate {
 		return false, nil
 	}
 
@@ -286,7 +285,7 @@ func (r *Repo) ChangedFile(pack, fsPath string, dbData FileInfo) (bool, error) {
 		return false, err
 	}
 	fmt.Println("wrong")
-	if res, err := r.stmtUpdFile.Exec(fInfo.Size(), fInfo.ModTime(), hash, dbData.Id); err != nil {
+	if res, err := r.stmtUpdFile.Exec(fInfo.Size(), fInfo.ModTime().UnixNano(), hash, dbData.Id); err != nil {
 		return false, fmt.Errorf("stmtUpdFile error: %v", err)
 	} else {
 		if ret, _ := res.RowsAffected(); ret == 0 {
