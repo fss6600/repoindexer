@@ -39,78 +39,78 @@ func Index(r *obj.Repo, packs []string) error {
 // processPackIndex обрабатывает (индексирует) файлы в указанном пакете
 func processPackIndex(r *obj.Repo, pack string) error {
 	var (
-		packID  int64          // ID пакета
-		fsl     []string       // список файлов пакета в репозитории
-		dbl     []obj.FileInfo // список файлов пакета в БД
-		err     error
-		fi, di  int          //  counters
-		fsPath  string       // file path on fs
-		dbData  obj.FileInfo // db file object
-		changed bool         // package has changes
+		packID       int64          // ID пакета
+		fsList       []string       // список файлов пакета в репозитории
+		dbList       []obj.FileInfo // список файлов пакета в БД
+		err          error
+		fsInd, dbInd int          //  counters
+		fsData       string       // file path on fs
+		dbData       obj.FileInfo // db file object
+		changed      bool         // package has changes
 	)
+	fsList, err = r.FilesPackRepo(pack)
+	if err != nil {
+		return err
+	}
 	packID = r.PackageID(pack)
-	fsl, err = r.FilesPackRepo(pack)
-	if err != nil {
-		return err
-	}
-	dbl, err = r.FilesPackDB(packID)
+	dbList, err = r.FilesPackDB(packID)
 	if err != nil {
 		return err
 	}
 
-	fsLastInd := len(fsl) - 1
-	dbLastInd := len(dbl) - 1
+	fsMaxInd := len(fsList) - 1
+	dbMaxInd := len(dbList) - 1
 
-	//fmt.Println("FS:", fsLastInd, "; db:", dbLastInd)
+	//fmt.Println("FS:", fsMaxInd, "; db:", dbMaxInd)
 
-	sort.Slice(fsl, func(i, j int) bool { return fsl[i] < fsl[j] })
-	sort.Slice(dbl, func(i, j int) bool { return dbl[i].Path < dbl[j].Path })
+	sort.Slice(fsList, func(i, j int) bool { return fsList[i] < fsList[j] })
+	sort.Slice(dbList, func(i, j int) bool { return dbList[i].Path < dbList[j].Path })
 
 	for {
-		if fi > fsLastInd && di > dbLastInd { // end both lists
+		if fsInd > fsMaxInd && dbInd > dbMaxInd { // end both lists
 			break
 		}
-		if di > dbLastInd { // no in db
-			fsPath = fsl[fi]
-			fmt.Print(fsPath)
+		if dbInd > dbMaxInd { // no in db
+			fsData = fsList[fsInd]
 			fmt.Print(": calculate sum/date; ")
 			fmt.Println(":1: add to db")
-			fi++ //next path in FS list
+			fsInd++ //next path in FS list
 			if !changed {
 				changed = true
 			}
 			continue
 		}
-		if fi > fsLastInd { // not in FS
-			dbData = dbl[di]
+		if fsInd > fsMaxInd { // not in FS
+			dbData = dbList[dbInd]
+			fmt.Print("dbData: ", dbData.Path, ":\t")
 			fmt.Println(dbData.Path, ":1: del from db")
-			di++ // next file obj in db list
+			dbInd++ // next file obj in db list
 			continue
 		}
 
-		fsPath = fsl[fi]
-		dbData = dbl[di]
+		fsData = fsList[fsInd]
+		dbData = dbList[dbInd]
 
-		if fsPath == dbData.Path { // in FS, in db
-			fmt.Print(fsPath, "=", dbData.Path)
-			_, err := internal.CheckSums(fsPath)
+		if fsData == dbData.Path { // in FS, in db
+			fmt.Print(fsData, "=", dbData.Path)
+			_, err := internal.CheckSums(fsData)
 			if err != nil {
 				log.Fatal(err)
 			}
-			fi++
-			di++
+			fsInd++
+			dbInd++
 
-		} else if fsPath < dbData.Path { // in FS, not in db
-			fmt.Print(fsPath)
+		} else if fsData < dbData.Path { // in FS, not in db
+			fmt.Print(fsData)
 			fmt.Print(": calculate sum/date; ")
 			fmt.Println(":2: add to db")
 			if !changed {
 				changed = true
 			}
-			fi++
-		} else if fsPath > dbData.Path { // not in FS, in db
+			fsInd++
+		} else if fsData > dbData.Path { // not in FS, in db
 			fmt.Println(dbData.Path, ":2: dell from db")
-			di++
+			dbInd++
 		} else {
 			log.Fatal("wrong")
 		}

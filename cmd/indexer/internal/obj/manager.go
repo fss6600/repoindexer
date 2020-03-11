@@ -92,6 +92,7 @@ func (r *Repo) PackageID(pack string) (id int64) {
 	err := r.db.QueryRow("SELECT id FROM packages WHERE name=?;", pack).Scan(&id)
 	if err == sql.ErrNoRows {
 		res, err := r.db.Exec("INSERT INTO packages VALUES (null, ?, '', null);", pack)
+		fmt.Println("add pack to BD:", pack)
 		if err != nil {
 			log.Fatalf("create pack [ %v ] record in db: %v", pack, err)
 		}
@@ -110,6 +111,7 @@ func (r *Repo) ActivePacks() []string {
 			"a_pack",
 			"b_pack",
 			"e_pack",
+			"y_pack",
 		}
 
 		for _, name := range fl {
@@ -202,7 +204,7 @@ func (r *Repo) FilesPackDB(id int64) ([]FileInfo, error) {
 	}
 	defer rows.Close()
 
-	fdataList := make([]FileInfo, cnt)
+	fdataList := make([]FileInfo, 0)
 	for rows.Next() {
 		fd := new(FileInfo)
 		if err := rows.Scan(&fd.Id, &fd.Path, &fd.Size, &fd.MDate, &fd.Hash); err != nil {
@@ -240,7 +242,8 @@ func (r *Repo) CleanPacks() {
 	//fmt.Println("очистка заблокированных пакетов из БД")
 	for _, pack := range r.packages() { // проход по списку пакетов в БД
 		if !r.IsActive(pack) {
-			r.removePack(pack)
+			//r.removePack(pack)
+			fmt.Println(pack, "removed")
 		}
 	}
 
