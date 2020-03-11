@@ -87,6 +87,19 @@ func (r *Repo) Close() {
 	}
 }
 
+// PackageID возвращает ID пакета
+func (r *Repo) PackageID(pack string) (id int64) {
+	err := r.db.QueryRow("SELECT id FROM packages WHERE name=?;", pack).Scan(&id)
+	if err == sql.ErrNoRows {
+		res, err := r.db.Exec("INSERT INTO packages VALUES (null, ?, '', null);", pack)
+		if err != nil {
+			log.Fatalf("create pack [ %v ] record in db: %v", pack, err)
+		}
+		id, _ = res.LastInsertId()
+	}
+	return
+}
+
 // ActivePacks кэширует и возвращает список пакетов в репозитории, за исключением заблокированных
 func (r *Repo) ActivePacks() []string {
 	if len(r.actPacks) == 0 {
@@ -173,18 +186,8 @@ func (r *Repo) FilesPackRepo(pack string) ([]string, error) {
 	}
 }
 
-// FilesPackDB возвращвет список файлов указанного пакета имеющихся в БД
-func (r *Repo) FilesPackDB(pack string) ([]FileInfo, error) {
-	var id int64
-	err := r.db.QueryRow("SELECT id FROM packages WHERE name=?;", pack).Scan(&id)
-	if err == sql.ErrNoRows {
-		res, err := r.db.Exec("INSERT INTO packages VALUES (null, ?, '', null);", pack)
-		if err != nil {
-			log.Fatalf("create pack [ %v ] record in db: %v", pack, err)
-		}
-		id, _ = res.LastInsertId()
-	}
-
+// FilesPackDB возвращвет список файлов пакета имеющихся в БД
+func (r *Repo) FilesPackDB(id int64) ([]FileInfo, error) {
 	cnt := 0
 	if err := r.db.QueryRow("SELECT COUNT(*) FROM FILES WHERE package_id=?;", id).Scan(&cnt); err != nil {
 		return nil, err
@@ -229,8 +232,12 @@ func (r *Repo) IsActive(pack string) bool {
 	return false
 }
 
+func (r *Repo) RemoveFile(id int) {
+
+}
+
 func (r *Repo) CleanPacks() {
-	fmt.Println("здесь будет очистка заблокированных пакетов из БД")
+	//fmt.Println("очистка заблокированных пакетов из БД")
 	for _, pack := range r.packages() { // проход по списку пакетов в БД
 		if !r.IsActive(pack) {
 			r.removePack(pack)

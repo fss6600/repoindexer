@@ -11,11 +11,6 @@ import (
 
 // Index обработка и индексация пакетов в репозитории
 func Index(r *obj.Repo, packs []string) error {
-	//r.PrepareDisabledPaksList() //
-
-	//asd  := len([]string{}) == 0
-	//fmt.Println(asd)
-
 	if len(packs) == 0 {
 		// получает актуальные активные пакеты в репозитории
 		packs = r.ActivePacks()
@@ -27,7 +22,7 @@ func Index(r *obj.Repo, packs []string) error {
 			}
 		}
 	}
-	fmt.Println(packs)
+	//fmt.Println(packs)
 	for _, pack := range packs {
 		if pack == "" {
 			return errors.New("error: задано пустое имя пакета")
@@ -37,7 +32,6 @@ func Index(r *obj.Repo, packs []string) error {
 			return err
 		}
 	}
-	//todo: add check pack in disabled list - clean db then
 	r.CleanPacks()
 	return nil
 }
@@ -45,6 +39,7 @@ func Index(r *obj.Repo, packs []string) error {
 // processPackIndex обрабатывает (индексирует) файлы в указанном пакете
 func processPackIndex(r *obj.Repo, pack string) error {
 	var (
+		packID  int64          // ID пакета
 		fsl     []string       // список файлов пакета в репозитории
 		dbl     []obj.FileInfo // список файлов пакета в БД
 		err     error
@@ -53,12 +48,12 @@ func processPackIndex(r *obj.Repo, pack string) error {
 		dbData  obj.FileInfo // db file object
 		changed bool         // package has changes
 	)
-
+	packID = r.PackageID(pack)
 	fsl, err = r.FilesPackRepo(pack)
 	if err != nil {
 		return err
 	}
-	dbl, err = r.FilesPackDB(pack)
+	dbl, err = r.FilesPackDB(packID)
 	if err != nil {
 		return err
 	}
@@ -79,7 +74,7 @@ func processPackIndex(r *obj.Repo, pack string) error {
 			fsPath = fsl[fi]
 			fmt.Print(fsPath)
 			fmt.Print(": calculate sum/date; ")
-			fmt.Println(": add to db")
+			fmt.Println(":1: add to db")
 			fi++ //next path in FS list
 			if !changed {
 				changed = true
@@ -88,7 +83,7 @@ func processPackIndex(r *obj.Repo, pack string) error {
 		}
 		if fi > fsLastInd { // not in FS
 			dbData = dbl[di]
-			fmt.Println(dbData.Path, ": del from db")
+			fmt.Println(dbData.Path, ":1: del from db")
 			di++ // next file obj in db list
 			continue
 		}
@@ -108,13 +103,13 @@ func processPackIndex(r *obj.Repo, pack string) error {
 		} else if fsPath < dbData.Path { // in FS, not in db
 			fmt.Print(fsPath)
 			fmt.Print(": calculate sum/date; ")
-			fmt.Println(": add to db")
+			fmt.Println(":2: add to db")
 			if !changed {
 				changed = true
 			}
 			fi++
 		} else if fsPath > dbData.Path { // not in FS, in db
-			fmt.Println(dbData.Path, ": dell from db")
+			fmt.Println(dbData.Path, ":2: dell from db")
 			di++
 		} else {
 			log.Fatal("wrong")
