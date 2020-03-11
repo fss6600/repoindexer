@@ -12,7 +12,6 @@ CREATE TABLE packages
     name  VARCHAR     NOT NULL UNIQUE,
     hash  VARCHAR(40) NOT NULL,
     alias TEXT
---    stamp DATETIME    NOT NULL
 );
 CREATE UNIQUE INDEX idx_packages
     ON packages (name);
@@ -26,12 +25,9 @@ CREATE TABLE files
     size       INTEGER     NOT NULL,
     mdate      DATETIME    NOT NULL,
     hash       VARCHAR(40) NOT NULL,
---    stamp      DATETIME    NOT NULL,
-    CONSTRAINT fk_files
-        FOREIGN KEY (package_id)
-            REFERENCES packages (id)
-            ON DELETE CASCADE
-            ON UPDATE CASCADE
+    FOREIGN KEY (package_id) REFERENCES packages (id)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE
 );
 CREATE UNIQUE INDEX idx_file_path
     ON files (path);

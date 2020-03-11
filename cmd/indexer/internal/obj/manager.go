@@ -70,6 +70,10 @@ func (r *Repo) OpenDB() error {
 	if err != nil {
 		return err
 	}
+	// инициализация поддержки первичных ключей в БД
+	if _, err := db.Exec("PRAGMA foreign_keys = ON;"); err != nil {
+		fmt.Println("error init PRAGMA", err)
+	}
 	r.db = db
 	return nil
 }
@@ -248,9 +252,6 @@ func (r *Repo) packages() []string {
 }
 
 func (r *Repo) removePack(pack string) {
-
-	//todo : каскадное удаление записей из files при удалении пакета
-
 	res, err := r.db.Exec("DELETE FROM packages WHERE name=?;", pack)
 	if err != nil {
 		fmt.Println("error remove pack", pack)
