@@ -1,7 +1,9 @@
 package internal
 
 import (
+	"log"
 	"os"
+	"path/filepath"
 )
 
 // проверяет наличие файла на диске
@@ -25,4 +27,22 @@ func CheckSums(fp string) ([]byte, error) {
 
 func HashSumFile(fp string) (uint, error) {
 	return 0, nil
+}
+
+//...
+func DirList(fp string, dirs chan<- string) {
+	fList, err := filepath.Glob(filepath.Join(fp, "*"))
+	if err != nil {
+		log.Fatalf("DirList error: %v", err)
+	}
+	for _, d := range fList {
+		res, err := os.Stat(d)
+		if err != nil {
+			log.Fatalf("DirList error: %v", err)
+		}
+		if res.IsDir() {
+			dirs <- filepath.Base(d)
+		}
+	}
+	close(dirs)
 }

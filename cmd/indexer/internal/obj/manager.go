@@ -104,7 +104,6 @@ func (r *Repo) PackageID(pack string) (id int64) {
 	err := r.db.QueryRow("SELECT id FROM packages WHERE name=?;", pack).Scan(&id)
 	if err == sql.ErrNoRows {
 		res, err := r.db.Exec("INSERT INTO packages VALUES (null, ?, '', null);", pack)
-		fmt.Println("add pack to BD:", pack)
 		if err != nil {
 			log.Fatalf("create pack [ %v ] record in db: %v", pack, err)
 		}
@@ -116,17 +115,9 @@ func (r *Repo) PackageID(pack string) (id int64) {
 // ActivePacks кэширует и возвращает список пакетов в репозитории, за исключением заблокированных
 func (r *Repo) ActivePacks() []string {
 	if len(r.actPacks) == 0 {
-
-		//todo add read pack from disk in repo
-		fl := []string{
-			//"aa_qwe",
-			"a_pack",
-			"b_pack",
-			"e_pack",
-			"y_pack",
-		}
-
-		for _, name := range fl {
+		ch := make(chan string, 3)
+		go internal.DirList(r.Path(), ch)
+		for name := range ch {
 			if r.packIsBlocked(name) {
 				continue
 			} else {
@@ -275,7 +266,6 @@ func (r *Repo) ChangedFile(pack, fsPath string, dbData FileInfo) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	//fmt.Println(fInfo.ModTime().Unix(), fInfo.ModTime().UnixNano())
 	if fInfo.Size() == dbData.Size && fInfo.ModTime().UnixNano() == dbData.MDate {
 		return false, nil
 	}
