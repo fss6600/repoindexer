@@ -34,7 +34,7 @@ type FileInfo struct {
 	Path  string // путь файла относительно корневой папки пакета
 	Size  int64  // размер файла
 	MDate int64  // дата изменения
-	Hash  uint   // контрольная сумма
+	Hash  string   // контрольная сумма
 }
 
 // NewRepoObj возвращает объект repoObj
@@ -246,6 +246,7 @@ func (r *Repo) AddFile(id int64, pack string, fPath string) error { // todo run 
 		return err
 	}
 	hash, err := internal.HashSumFile(fp)
+	fmt.Println(fp, hash)
 	if err != nil {
 		return err
 	}

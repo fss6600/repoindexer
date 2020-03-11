@@ -1,6 +1,9 @@
 package internal
 
 import (
+	"crypto"
+	"fmt"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
@@ -25,8 +28,19 @@ func CheckSums(fp string) ([]byte, error) {
 	return []byte{}, nil
 }
 
-func HashSumFile(fp string) (uint, error) {
-	return 0, nil
+// HashSumFile вычисляет контрольную сумму файла по алгоритму SHA1
+func HashSumFile(fp string) (string, error) {
+	errMsg := "file hash sum calc error: %v"
+	f, err := os.Open(fp)
+	if err != nil {
+		log.Fatalf(errMsg, err)
+	}
+	defer f.Close()
+	h := crypto.SHA1.New()
+	if _, err := io.Copy(h, f); err != nil {
+		log.Fatalf(errMsg, err)
+	}
+	return fmt.Sprintf("%x", h.Sum(nil)), nil
 }
 
 //...
