@@ -34,7 +34,7 @@ type FileInfo struct {
 	Path  string // путь файла относительно корневой папки пакета
 	Size  int64  // размер файла
 	MDate int64  // дата изменения
-	Hash  string   // контрольная сумма
+	Hash  string // контрольная сумма
 }
 
 // NewRepoObj возвращает объект repoObj
@@ -246,7 +246,6 @@ func (r *Repo) AddFile(id int64, pack string, fPath string) error { // todo run 
 		return err
 	}
 	hash, err := internal.HashSumFile(fp)
-	fmt.Println(fp, hash)
 	if err != nil {
 		return err
 	}
@@ -275,7 +274,6 @@ func (r *Repo) ChangedFile(pack, fsPath string, dbData FileInfo) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	fmt.Println("wrong")
 	if res, err := r.stmtUpdFile.Exec(fInfo.Size(), fInfo.ModTime().UnixNano(), hash, dbData.Id); err != nil {
 		return false, fmt.Errorf("stmtUpdFile error: %v", err)
 	} else {
@@ -332,6 +330,27 @@ func (r *Repo) removePack(pack string) {
 		fmt.Println("должна быть удалена 1 запись: 0")
 	}
 	fmt.Println("удалено:", pack)
+}
+
+// todo: пересмотреть на расчет суммы частями
+//...
+func (r *Repo) HashSumPack(id int64) error {
+	var hash, hTotal string
+	rows, _ := r.db.Query("SELECT hash FROM FILES WHERE package_id=?;", id)
+	defer rows.Close()
+	for rows.Next() {
+		_ = rows.Scan(&hash)
+		hTotal += hash
+	}
+	hash = internal.HashSum(hTotal)
+	res, err := r.db.Exec("UPDATE packages SET hash=? WHERE id=?;", hash, id)
+	if err != nil {
+		return fmt.Errorf("HashSumPack: %v", err)
+	}
+	if c, _ := res.RowsAffected(); c == 0 {
+		return fmt.Errorf("HashSumPack: должна быть обновлена 1 запись: 0")
+	}
+	return nil
 }
 
 //...

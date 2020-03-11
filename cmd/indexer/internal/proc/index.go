@@ -108,6 +108,9 @@ func processPackIndex(r *obj.Repo, pack string) error {
 			}
 			if res {
 				fmt.Println(".", dbData.Path)
+				if !changed {
+					changed = true
+				}
 			}
 			fsInd++
 			dbInd++
@@ -128,11 +131,22 @@ func processPackIndex(r *obj.Repo, pack string) error {
 				return err
 			}
 			fmt.Println("-", dbData.Path)
+			if !changed {
+				changed = true
+			}
 			dbInd++
 		} else {
 			log.Fatal("wrong")
 		}
 		continue
 	}
+
+	// пересчитываем контрольную сумму пакета при наличии изменений файлов
+	if changed {
+		if err := r.HashSumPack(packID); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
