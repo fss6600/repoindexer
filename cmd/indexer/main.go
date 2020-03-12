@@ -5,10 +5,13 @@ package main
 import (
 	"flag"
 	"fmt"
+	"github.com/pmshoot/repoindexer/cmd/indexer/internal/obj"
+	"github.com/pmshoot/repoindexer/cmd/indexer/internal/proc"
 	"log"
 )
 
 const version string = "0.0.1a"
+
 var repoPath string
 var flagVersion, flagFullMode, flagPopIndex bool
 
@@ -45,7 +48,7 @@ func main() {
 	switch cmd {
 	// инициализация репозитория
 	case "init":
-		if err := initDB(repoPath); err != nil {
+		if err := obj.InitDB(repoPath); err != nil {
 			log.Fatalf("ошибка при инициализации репозитория %v: %v", repoPath, err)
 		}
 		return
@@ -60,20 +63,20 @@ func main() {
 			mode = cmdRegl.Arg(0)
 		}
 		// установка режима регламента
-		SetReglamentMode(repoPath, mode)
+		proc.SetReglamentMode(repoPath, mode)
 		return
 	}
 
 	// инициализация и подключение к БД
-	repoPtr := NewRepoObj(repoPath)
+	repoPtr := obj.NewRepoObj(repoPath)
 	if err := repoPtr.OpenDB(); err != nil {
 		log.Fatalln(err)
 	}
-	defer repoPtr.CloseDB()
+	defer repoPtr.Close()
 
-	if flagFullMode {
-		repoPtr.SetFullMode()
-	}
+	//if flagFullMode {
+	//	repoPtr.SetFullMode()
+	//}
 
 	switch cmd {
 	//индексация файлов репозитория с записью в БД
@@ -83,7 +86,7 @@ func main() {
 			log.Fatalln(err)
 		}
 		// индексация репозитория
-		if err := Index(repoPtr, cmdIndex.Args()); err != nil {
+		if err := proc.Index(repoPtr, cmdIndex.Args()); err != nil {
 			log.Fatalln("ошибка индексирования репозитория:", err)
 		}
 		// flag p: выгрузка в индекс-файл
@@ -94,8 +97,8 @@ func main() {
 	DOPOPULATE:
 		fallthrough
 	// выгрузка данных индексации из БД в Index.json[gz]
-	case "Populate":
-		if err := Populate(repoPtr); err != nil {
+	case "populate":
+		if err := proc.Populate(repoPtr); err != nil {
 			log.Fatalln("ошибка выгрузки индекса:", err)
 		}
 	// активация/деактивация пакетов в репозитории
@@ -114,7 +117,7 @@ func main() {
 		if cmd == "disable" {
 			disabled = true
 		}
-		if err := SetPacketStatus(repoPtr, disabled, packetsList); err != nil {
+		if err := proc.SetPackStatus(repoPtr, disabled, packetsList); err != nil {
 			log.Fatalf("ошибка установления статуса пакетов: %v", err)
 		}
 
@@ -125,7 +128,7 @@ func main() {
 	case "cleardb": // очистка БД от данных
 
 	case "status": // вывод информации о репозитории
-		if err := RepoStatus(repoPtr); err != nil {
+		if err := proc.RepoStatus(repoPtr); err != nil {
 			log.Fatalln(err)
 		}
 
