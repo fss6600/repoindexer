@@ -9,9 +9,8 @@ import (
 	"path/filepath"
 	"regexp"
 
-	"github.com/pmshoot/repoindexer/cmd/indexer/internal"
-
 	_ "github.com/mattn/go-sqlite3"
+	"github.com/pmshoot/repoindexer/cmd/indexer/internal/utils"
 )
 
 const fileDBName string = "index.db"
@@ -66,7 +65,7 @@ func (r *Repo) Path() string {
 // OpenDB открывает подключение к БД
 func (r *Repo) OpenDB() error {
 	fp := dbPath(r.path)
-	if !internal.FileExists(fp) {
+	if !utils.FileExists(fp) {
 		return errors.New("репозиторий не инициализирован")
 	}
 	db, err := newConnection(fp)
@@ -116,7 +115,7 @@ func (r *Repo) PackageID(pack string) (id int64) {
 func (r *Repo) ActivePacks() []string {
 	if len(r.actPacks) == 0 {
 		ch := make(chan string, 3)
-		go internal.DirList(r.Path(), ch)
+		go utils.DirList(r.Path(), ch)
 		for name := range ch {
 			if r.packIsBlocked(name) {
 				continue
@@ -245,7 +244,7 @@ func (r *Repo) AddFile(id int64, pack string, fPath string) error { // todo run 
 	if err != nil {
 		return err
 	}
-	hash, err := internal.HashSumFile(fp)
+	hash, err := utils.HashSumFile(fp)
 	if err != nil {
 		return err
 	}
@@ -270,7 +269,7 @@ func (r *Repo) ChangedFile(pack, fsPath string, dbData FileInfo) (bool, error) {
 		return false, nil
 	}
 
-	hash, err := internal.HashSumFile(fp)
+	hash, err := utils.HashSumFile(fp)
 	if err != nil {
 		return false, err
 	}
@@ -342,7 +341,7 @@ func (r *Repo) HashSumPack(id int64) error {
 		_ = rows.Scan(&hash)
 		hTotal += hash
 	}
-	hash = internal.HashSum(hTotal)
+	hash = utils.HashSum(hTotal)
 	res, err := r.db.Exec("UPDATE packages SET hash=? WHERE id=?;", hash, id)
 	if err != nil {
 		return fmt.Errorf("HashSumPack: %v", err)
@@ -377,7 +376,7 @@ func (r *Repo) SetPrepare() (err error) {
 // InitDB инициализирует файл db
 func InitDB(path string) error {
 	fp := dbPath(path)
-	if internal.FileExists(fp) {
+	if utils.FileExists(fp) {
 		fmt.Println("файл БД существует")
 		return nil
 	}
