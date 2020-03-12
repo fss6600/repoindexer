@@ -111,6 +111,12 @@ func (r *Repo) PackageID(pack string) (id int64) {
 	return
 }
 
+func (r *Repo) Alias(pack string) (alias string) {
+	_ = r.db.QueryRow("SELECT alias FROM aliases WHERE name=?;", pack).Scan(&alias)
+	fmt.Println("alias", pack, "=", alias)
+	return
+}
+
 // ActivePacks кэширует и возвращает список пакетов в репозитории, за исключением заблокированных
 func (r *Repo) ActivePacks() []string {
 	if len(r.actPacks) == 0 {
@@ -144,7 +150,48 @@ func (r *Repo) DisabledPacks() []string {
 	return r.disPacks
 }
 
-// FilesPackRepo возвращает список файлов указанного пакета в репозитории
+type HashedPackData struct {
+	Id    int64             `json:"-"`
+	Name  string            `json:"-"`
+	Alias string            `json:"alias"`
+	Hash  string            `json:"phash"`
+	Files map[string]string `json:"files"`
+}
+
+//...
+func (r *Repo) HashedPackages(packs chan HashedPackData) {
+	rows, err := r.db.Query("SELECT id, name, hash FROM packages ORDER BY name;")
+	if err == sql.ErrNoRows {
+		close(packs)
+		return
+	} else if err != nil {
+		log.Fatalf("HashedPackages: %v", err)
+	}
+	defer rows.Close()
+
+	var pData HashedPackData
+	for rows.Next() {
+		if err := rows.Scan(&pData.Id, &pData.Name, &pData.Hash); err != nil {
+			log.Fatalf("HashedPackages: %v", err)
+		}
+		pData.Alias = r.Alias(pData.Name)
+
+		f := map[string]string{}
+		fList, _ := r.FilesPackDB(pData.Id)
+		//if err != nil {
+		//	return err
+		//}
+		for _, fd := range fList {
+			f[fd.Path] = fd.Hash
+		}
+		pData.Files = f
+
+		packs <- pData
+	}
+	close(packs)
+}
+
+// FilesPackRepo возвращает список файлов указанного пакета в репозитории // todo - на горутины с передачей данных через канал
 func (r *Repo) FilesPackRepo(pack string) ([]string, error) {
 	path := filepath.Join(r.path, pack) // base Path repopath/packname
 	fList := make([]string, 0, 50)      // reserve place for ~50 files
@@ -191,7 +238,7 @@ func (r *Repo) FilesPackRepo(pack string) ([]string, error) {
 }
 
 // FilesPackDB возвращвет список файлов пакета имеющихся в БД
-func (r *Repo) FilesPackDB(id int64) ([]FileInfo, error) {
+func (r *Repo) FilesPackDB(id int64) ([]FileInfo, error) { // todo - на горутины с передачей данных через канал
 	cnt := 0
 	if err := r.db.QueryRow("SELECT COUNT(*) FROM FILES WHERE package_id=?;", id).Scan(&cnt); err != nil {
 		return nil, err
