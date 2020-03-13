@@ -5,9 +5,10 @@ package main
 import (
 	"flag"
 	"fmt"
+	"log"
+
 	"github.com/pmshoot/repoindexer/cmd/indexer/internal/obj"
 	"github.com/pmshoot/repoindexer/cmd/indexer/internal/proc"
-	"log"
 )
 
 const version string = "0.0.1a"
@@ -98,12 +99,12 @@ func main() {
 		fallthrough
 	// выгрузка данных индексации из БД в Index.json[gz]
 	case "populate":
+		fmt.Println("выгрузка данных в индекс файл")
 		if err := proc.Populate(repoPtr); err != nil {
 			log.Fatalln("ошибка выгрузки индекса:", err)
 		}
-	// активация/деактивация пакетов в репозитории
-	case "enable", "disable":
-		disabled := false
+	// активация пакетов в репозитории
+	case "enable":
 		cmdSetStatus := flag.NewFlagSet("setstatus", flag.ErrorHandling(1))
 		if err := cmdSetStatus.Parse(flag.Args()[1:]); err != nil {
 			log.Fatalln(err)
@@ -114,10 +115,26 @@ func main() {
 			fmt.Println("укажите по крайней мере один пакет")
 			return
 		}
-		if cmd == "disable" {
-			disabled = true
+
+		status := proc.PackStateEnable
+		if err := proc.SetPackStatus(repoPtr, status, packetsList); err != nil {
+			log.Fatalf("ошибка установления статуса пакетов: %v", err)
 		}
-		if err := proc.SetPackStatus(repoPtr, disabled, packetsList); err != nil {
+	// деактивация пакетов в репозитории
+	case "disable":
+		cmdSetStatus := flag.NewFlagSet("setstatus", flag.ErrorHandling(1))
+		if err := cmdSetStatus.Parse(flag.Args()[1:]); err != nil {
+			log.Fatalln(err)
+		}
+		// наименования пакетов
+		packetsList := cmdSetStatus.Args()
+		if len(packetsList) == 0 {
+			fmt.Println("укажите по крайней мере один пакет")
+			return
+		}
+
+		status := proc.PackStateDisable
+		if err := proc.SetPackStatus(repoPtr, status, packetsList); err != nil {
 			log.Fatalf("ошибка установления статуса пакетов: %v", err)
 		}
 

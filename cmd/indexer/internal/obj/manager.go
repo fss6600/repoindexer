@@ -122,7 +122,7 @@ func (r *Repo) ActivePacks() []string {
 		ch := make(chan string, 3)
 		go utils.DirList(r.Path(), ch)
 		for name := range ch {
-			if r.packIsBlocked(name) {
+			if r.PackIsBlocked(name) {
 				continue
 			} else {
 				r.actPacks = append(r.actPacks, name)
@@ -264,7 +264,7 @@ func (r *Repo) FilesPackDB(id int64) ([]FileInfo, error) { // todo - на гор
 }
 
 //...
-func (r *Repo) packIsBlocked(name string) bool {
+func (r *Repo) PackIsBlocked(name string) bool {
 	for _, fn := range r.DisabledPacks() {
 		if name == fn {
 			return true
@@ -274,7 +274,7 @@ func (r *Repo) packIsBlocked(name string) bool {
 }
 
 //...
-func (r *Repo) IsActive(pack string) bool {
+func (r *Repo) PackIsActive(pack string) bool {
 	for _, fp := range r.ActivePacks() {
 		if fp == pack {
 			return true
@@ -343,10 +343,12 @@ func (r *Repo) RemoveFile(id int64) error {
 
 //...
 func (r *Repo) CleanPacks() {
-	//fmt.Println("очистка заблокированных пакетов из БД")
+	// clean caches lists
+	r.actPacks = []string{}
+	r.disPacks = []string{}
 	for _, pack := range r.packages() { // проход по списку пакетов в БД
-		if !r.IsActive(pack) {
-			r.removePack(pack)
+		if !r.PackIsActive(pack) {
+			r.RemovePack(pack)
 		}
 	}
 
@@ -366,7 +368,31 @@ func (r *Repo) packages() []string {
 }
 
 //...
-func (r *Repo) removePack(pack string) {
+func (r *Repo) DisablePack(pack string) error {
+	res, err := r.db.Exec("INSERT INTO excludes VALUES (?);", pack)
+	if err != nil {
+		return fmt.Errorf(":DisablePack: %v", pack)
+	}
+	if c, _ := res.RowsAffected(); c != 1 {
+		return fmt.Errorf(":DisablePack:[ %v ]:добавлено %d, должно 1", pack, c)
+	}
+	return nil
+}
+
+//...
+func (r *Repo) EnablePack(pack string) error {
+	res, err := r.db.Exec("DELETE FROM excludes WHERE name=?;", pack)
+	if err != nil {
+		return fmt.Errorf(":EnablePack: %v", pack)
+	}
+	if c, _ := res.RowsAffected(); c != 1 {
+		return fmt.Errorf(":EnablePack:[ %v ]:удалено %d, должно 1", pack, c)
+	}
+	return nil
+}
+
+//...
+func (r *Repo) RemovePack(pack string) {
 	res, err := r.db.Exec("DELETE FROM packages WHERE name=?;", pack)
 	if err != nil {
 		fmt.Println("error remove pack", pack)
@@ -374,7 +400,7 @@ func (r *Repo) removePack(pack string) {
 	if c, _ := res.RowsAffected(); c == 0 {
 		fmt.Println("должна быть удалена 1 запись: 0")
 	}
-	fmt.Println("удалено:", pack)
+	fmt.Printf("заблокирован: [ %v ]", pack)
 }
 
 // todo: пересмотреть на расчет суммы частями

@@ -53,5 +53,7 @@ CREATE TABLE excludes
 (
     name VARCHAR NOT NULL UNIQUE
 );
+CREATE INDEX idx_excludes
+    ON excludes (name);
 
 

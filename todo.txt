@@ -1,4 +1,10 @@
-todo now:
+todo now: активация/деактивация пакетов
+
+todo: обработка пакетов не чувствительна к регистру
+
+
+todo: обработку пакетов в транзакции
+todo: добавить проверку на режим регламента при индескации, выгрузке
 
 todo: чтение данных о файлах в репозитории (список) и в БД -  в горутину для параллельного исполнения
 todo: хэш сумма пакета (на основании хэш-суммы файлов в пакете) - частями. при наличии большого количества файлов в пакете ???
@@ -10,10 +16,10 @@ todo: добавить логгер с цветным выводом инфо в
 commands:
 - init  +
 - index [packname ...]  +
-- populate  .
+- populate  +
 - status
-- enable packname
-- disable packname
+- enable packname .
+- disable packname .
 - alias set aliasname=packetname [aliasname1 packetname1] ...
 - alias del aliasname [aliasname1] ...
 - cleardb [index | alias | status | all]

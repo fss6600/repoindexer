@@ -15,10 +15,16 @@ func Index(r *obj.Repo, packs []string) (err error) {
 		// получает актуальные активные пакеты в репозитории
 		packs = r.ActivePacks()
 	} else {
-		// проверяем актуальность (правильность) указанных пакетов
+		//// проверяем актуальность (правильность) указанных пакетов
+		//for _, pack := range packs {
+		//	if !r.PackIsActive(pack) {
+		//		return fmt.Errorf("пакет [ %v ] не найден в репозитории или заблокирован", pack)
+		//	}
+		//}
+		// проверяем блокировку указанных пакетов
 		for _, pack := range packs {
-			if !r.IsActive(pack) {
-				return fmt.Errorf("пакет [ %v ] не найден в репозитории или заблокирован", pack)
+			if r.PackIsBlocked(pack) {
+				return fmt.Errorf("пакет [ %v ] заблокирован", pack)
 			}
 		}
 	}
