@@ -113,7 +113,6 @@ func (r *Repo) PackageID(pack string) (id int64) {
 
 func (r *Repo) Alias(pack string) (alias string) {
 	_ = r.db.QueryRow("SELECT alias FROM aliases WHERE name=?;", pack).Scan(&alias)
-	fmt.Println("alias", pack, "=", alias)
 	return
 }
 

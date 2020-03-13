@@ -63,3 +63,10 @@ func DirList(fp string, dirs chan<- string) {
 	}
 	close(dirs)
 }
+
+//...
+func CheckError(str string, err *error) {
+	if *err != nil {
+		panic(fmt.Errorf("%v: %v", str, *err))
+	}
+}
