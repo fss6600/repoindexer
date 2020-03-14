@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/mattn/go-sqlite3"
 	"log"
 	"os"
 	"path/filepath"
@@ -14,6 +15,8 @@ import (
 )
 
 const fileDBName string = "index.db"
+
+type ErrAlias error
 
 // Repo объект репозитория с БД
 type Repo struct {
@@ -111,9 +114,56 @@ func (r *Repo) PackageID(pack string) (id int64) {
 	return
 }
 
+// Alias возвращает псевдоним пакета при наличии
 func (r *Repo) Alias(pack string) (alias string) {
 	_ = r.db.QueryRow("SELECT alias FROM aliases WHERE name=?;", pack).Scan(&alias)
 	return
+}
+
+// Alias возвращает срез срезов (пар) псевдоним-пакет
+func (r *Repo) Aliases() [][]string {
+	var aliases [][]string
+	var alias, name string
+	rows, _ := r.db.Query("SELECT alias, name FROM aliases ORDER BY alias;")
+	defer rows.Close()
+	for rows.Next() {
+		var aliasPair []string
+		_ = rows.Scan(&alias, &name)
+		aliasPair = append(aliasPair, alias, name)
+		aliases = append(aliases, aliasPair)
+	}
+	return aliases
+}
+
+// SetAlias устанавливает псевдоним для пакета при отсутствии уже установленного псевдонима
+// и при наличии актуального пакета
+func (r *Repo) SetAlias(alias []string) error {
+	if !r.PackIsActive(alias[1]) {
+		return ErrAlias(fmt.Errorf("пакет [ %v ] не найден или заблокирован\n", alias[1]))
+	}
+	if res, err := r.db.Exec("INSERT INTO aliases (alias,name) VALUES (?, ?);", alias[0], alias[1]); err != nil {
+		switch err.(type) {
+		case sqlite3.Error:
+			if err.(sqlite3.Error).Code == sqlite3.ErrConstraint {
+				return ErrAlias(fmt.Errorf("псевдоним [ %v ] или псевдоним для пакета [ %v ] уже заданы", alias[0], alias[1]))
+			}
+		default:
+			return fmt.Errorf(":manager: %v", err)
+		}
+	} else if c, err := res.RowsAffected(); err != nil || c != 1 {
+		return fmt.Errorf(":manager: псевдоним не добавлен: err=%v;count=%d", err, c)
+	}
+	return nil
+}
+
+// DelAlias удалает псевдоним
+func (r *Repo) DelAlias(alias string) error {
+	if res, err := r.db.Exec("DELETE FROM aliases WHERE alias=?;", alias); err != nil {
+		return fmt.Errorf(":manager: %v", err)
+	} else if c, _ := res.RowsAffected(); c != 1 {
+		return ErrAlias(fmt.Errorf("не найден псевдоним [ %v ]", alias))
+	}
+	return nil
 }
 
 // ActivePacks кэширует и возвращает список пакетов в репозитории, за исключением заблокированных

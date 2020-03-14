@@ -139,15 +139,27 @@ func main() {
 		}
 
 	case "alias": // установка/снятие псевдонимов пакетов
+		var cmd string
+		var aliases []string
+		cmdAlias := flag.NewFlagSet("alias", flag.ErrorHandling(1))
+		if err := cmdAlias.Parse(flag.Args()[1:]); err != nil {
+			panic(fmt.Errorf(":aliases: %v", err))
+		}
+		if len(cmdAlias.Args()) == 0 {
+			cmd = ""
+			aliases = nil
+		} else {
+			cmd = cmdAlias.Args()[0]
+			aliases = cmdAlias.Args()[1:]
+		}
+		proc.Alias(repoPtr, cmd, aliases)
 
 	case "clean": // профилактика БД
 
 	case "cleardb": // очистка БД от данных
 
 	case "status": // вывод информации о репозитории
-		if err := proc.RepoStatus(repoPtr); err != nil {
-			log.Fatalln(err)
-		}
+		proc.RepoStatus(repoPtr)
 
 	default:
 		fmt.Println("команда не опознана")
