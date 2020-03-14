@@ -1,7 +1,10 @@
-todo now: активация/деактивация пакетов
+todo now: вывод статуса (инфо) рпеозитория
 
 todo: обработка пакетов не чувствительна к регистру
 
+
+todo: обработка флагов командной строки - cobra: https://github.com/spf13/cobra
+todo: log info, debug
 
 todo: обработку пакетов в транзакции
 todo: добавить проверку на режим регламента при индескации, выгрузке
@@ -11,17 +14,16 @@ todo: хэш сумма пакета (на основании хэш-суммы 
 
 todo: индикатор процесса выполнения в процентах
 todo: вывод информации только обо обработанных пакетах (название необработанного завменяется на следующий)
-todo: обработка флагов командной строки - cobra: https://github.com/spf13/cobra
 todo: добавить логгер с цветным выводом инфо в консоли
 commands:
-- init  +
-- index [packname ...]  +
-- populate  +
-- status
-- enable packname .
-- disable packname .
-- alias set aliasname=packetname [aliasname1 packetname1] ...
-- alias del aliasname [aliasname1] ...
++ init
++ index [packname ...]
++ populate
++ enable packname ...
++ disable packname ...
++ alias set aliasname=packetname ...
++ alias del aliasname [aliasname1] ...
+. status
 - cleardb [index | alias | status | all]
 - clean //'db profilactics'
 
