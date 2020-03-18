@@ -14,6 +14,7 @@ import (
 var err error
 
 func Populate(r *obj.Repo) error {
+	CheckRegl(r.Path())
 	type packages map[string]obj.HashedPackData
 	packCh := make(chan obj.HashedPackData)
 	packDataList := packages{}
