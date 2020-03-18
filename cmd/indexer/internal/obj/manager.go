@@ -457,6 +457,30 @@ func (r *Repo) RemovePack(pack string) {
 	fmt.Printf("заблокирован: [ %v ]", pack)
 }
 
+func (r *Repo) DBCleanPackages() error {
+	_, err := r.db.Exec("DELETE FROM packages;")
+	if err != nil {
+		return fmt.Errorf(":DBCleanPackages:%v", err)
+	}
+	return nil
+}
+
+func (r *Repo) DBCleanAliases() error {
+	_, err := r.db.Exec("DELETE FROM aliases;")
+	if err != nil {
+		return fmt.Errorf(":DBCleanAliases:%v", err)
+	}
+	return nil
+}
+
+func (r *Repo) DBCleanStatus() error {
+	_, err := r.db.Exec("DELETE FROM excludes;")
+	if err != nil {
+		return fmt.Errorf(":DBCleanStatus:%v", err)
+	}
+	return nil
+}
+
 // todo: пересмотреть на расчет суммы частями
 //...
 func (r *Repo) HashSumPack(id int64) error {

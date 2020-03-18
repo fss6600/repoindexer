@@ -168,6 +168,17 @@ func main() {
 	case "clean": // профилактика БД
 
 	case "cleardb": // очистка БД от данных
+		var cmd string
+		cmdAlias := flag.NewFlagSet("cleardb", flag.ErrorHandling(1))
+		if err := cmdAlias.Parse(flag.Args()[1:]); err != nil {
+			panic(fmt.Errorf(":cleardb: %v", err))
+		}
+		if len(cmdAlias.Args()) == 0 {
+			cmd = ""
+		} else {
+			cmd = cmdAlias.Args()[0]
+		}
+		proc.ClearDB(repoPtr, cmd)
 
 	case "status": // вывод информации о репозитории
 		proc.RepoStatus(repoPtr)
