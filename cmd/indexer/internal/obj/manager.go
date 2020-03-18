@@ -9,12 +9,16 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"time"
 
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/pmshoot/repoindexer/cmd/indexer/internal/utils"
 )
 
-const fileDBName string = "index.db"
+const (
+	fileDBName string = "index.db"
+	Indexgz    string = "index.gz"
+)
 
 type ErrAlias error
 
@@ -493,6 +497,66 @@ func (r *Repo) SetPrepare() (err error) {
 		return err
 	}
 	return nil
+}
+
+// ...
+type RepoStData struct {
+	TotalCnt   int       // общее количество пакетов
+	IndexedCnt int       // количество проиндексированных пакетов
+	BlockedCnt int       // количество заблокированных
+	IndexSize  int64     // размер индекс-файла в байтах
+	IndexMDate time.Time // дата изменения индекс-файла
+	DBSize     int64     // размер файла БД в байтах
+	DBMDate    time.Time // дата изменения файла БД
+	HashSize   int64     // размер хэш-файла в байтах
+	HashMDate  time.Time // дата изменения хэш-файла
+}
+
+//...
+func (r *Repo) Status() *RepoStData {
+	data := new(RepoStData)
+	// количество активных пакетов
+	if err := r.db.QueryRow("SELECT COUNT() FROM packages;").Scan(&data.IndexedCnt); err != nil {
+		panic(fmt.Errorf("manager::status:%v", err))
+	}
+
+	// количество заблокированных
+	if err := r.db.QueryRow("SELECT COUNT() FROM excludes;").Scan(&data.BlockedCnt); err != nil {
+		panic(fmt.Errorf("manager::status:%v", err))
+	}
+
+	// количество пакетов в репозитории
+	ch := make(chan string)
+	go utils.DirList(r.Path(), ch)
+	for _ = range ch {
+		data.TotalCnt += 1
+	}
+
+	// данные БД файла
+	fInfo, err := os.Stat(dbPath(r.Path()))
+	if err != nil {
+		panic(fmt.Errorf("manager::status:%v", err))
+	}
+	data.DBSize = fInfo.Size()
+	data.DBMDate = fInfo.ModTime()
+
+	// данные индекс файла
+	fInfo, err = os.Stat(filepath.Join(r.Path(), Indexgz))
+	if err != nil {
+		panic(fmt.Errorf("manager::status:%v", err))
+	}
+	data.IndexSize = fInfo.Size()
+	data.IndexMDate = fInfo.ModTime()
+
+	// данные индекс-хэш файла
+	fInfo, err = os.Stat(filepath.Join(r.Path(), Indexgz+".sha1"))
+	if err != nil {
+		panic(fmt.Errorf("manager::status:%v", err))
+	}
+	data.HashSize = fInfo.Size()
+	data.HashMDate = fInfo.ModTime()
+
+	return data
 }
 
 // InitDB инициализирует файл db
