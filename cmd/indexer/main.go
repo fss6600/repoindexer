@@ -14,7 +14,7 @@ import (
 const version string = "0.0.1a"
 
 var repoPath string
-var flagVersion, flagFullMode, flagPopIndex bool
+var flagVersion, flagFullMode, flagPopIndex, flagDebug bool
 
 func init() {
 	// обработка флагов и переменных
@@ -22,7 +22,17 @@ func init() {
 	flag.BoolVar(&flagFullMode, "f", false, "режим полной индексации")
 	flag.BoolVar(&flagVersion, "v", false, "версия программы")
 	flag.BoolVar(&flagPopIndex, "p", false, "выгрузить данные в индекс-файл после индексации")
+	flag.BoolVar(&flagDebug, "d", false, "режим отладки")
 	flag.Parse()
+}
+
+func checkPanic() {
+	if !flagDebug {
+		if r := recover(); r != nil {
+			fmt.Println(r)
+		}
+	}
+
 }
 
 func main() {
@@ -44,6 +54,7 @@ func main() {
 		return
 	}
 	cmd := flag.Args()[0]
+	defer checkPanic()
 
 	// обработка команд, не требующих подключения к БД
 	switch cmd {
