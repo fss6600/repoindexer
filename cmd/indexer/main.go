@@ -159,9 +159,7 @@ func main() {
 	case "cleardb": // очистка БД от данных
 
 	case "status": // вывод информации о репозитории
-		if err := proc.RepoStatus(repoPtr); err != nil {
-			log.Fatalln(err)
-		}
+		proc.RepoStatus(repoPtr)
 
 	default:
 		fmt.Println("команда не опознана")

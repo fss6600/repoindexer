@@ -5,8 +5,7 @@ import (
 	"github.com/pmshoot/repoindexer/cmd/indexer/internal/obj"
 )
 
-func RepoStatus(repo *obj.Repo) error {
+func RepoStatus(repo *obj.Repo) {
 	fmt.Println("вывод информации о репозитории")
-	return nil
 }
 
