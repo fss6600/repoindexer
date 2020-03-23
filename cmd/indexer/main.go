@@ -14,7 +14,7 @@ import (
 const version string = "0.0.1a"
 
 var repoPath string
-var flagVersion, flagFullMode, flagPopIndex bool
+var flagVersion, flagFullMode, flagPopIndex, flagDebug bool
 
 func init() {
 	// обработка флагов и переменных
@@ -22,7 +22,17 @@ func init() {
 	flag.BoolVar(&flagFullMode, "f", false, "режим полной индексации")
 	flag.BoolVar(&flagVersion, "v", false, "версия программы")
 	flag.BoolVar(&flagPopIndex, "p", false, "выгрузить данные в индекс-файл после индексации")
+	flag.BoolVar(&flagDebug, "d", false, "режим отладки")
 	flag.Parse()
+}
+
+func checkPanic() {
+	if !flagDebug {
+		if r := recover(); r != nil {
+			fmt.Println(r)
+		}
+	}
+
 }
 
 func main() {
@@ -44,6 +54,7 @@ func main() {
 		return
 	}
 	cmd := flag.Args()[0]
+	defer checkPanic()
 
 	// обработка команд, не требующих подключения к БД
 	switch cmd {
@@ -153,10 +164,37 @@ func main() {
 			aliases = cmdAlias.Args()[1:]
 		}
 		proc.Alias(repoPtr, cmd, aliases)
+<<<<<<< HEAD
+=======
+
+    case "list":
+        var cmd string
+        cmdAlias := flag.NewFlagSet("list", flag.ErrorHandling(1))
+        if err := cmdAlias.Parse(flag.Args()[1:]); err != nil {
+            panic(fmt.Errorf(":list: %v", err))
+        }
+        if len(cmdAlias.Args()) == 0 {
+            cmd = "all"
+        } else {
+            cmd = cmdAlias.Args()[0]
+        }
+        proc.List(repoPtr, cmd)
+>>>>>>> e291739525268f08b2ebe19b20fc56611ccce36a
 
 	case "clean": // профилактика БД
 
 	case "cleardb": // очистка БД от данных
+		var cmd string
+		cmdAlias := flag.NewFlagSet("cleardb", flag.ErrorHandling(1))
+		if err := cmdAlias.Parse(flag.Args()[1:]); err != nil {
+			panic(fmt.Errorf(":cleardb: %v", err))
+		}
+		if len(cmdAlias.Args()) == 0 {
+			cmd = ""
+		} else {
+			cmd = cmdAlias.Args()[0]
+		}
+		proc.ClearDB(repoPtr, cmd)
 
 	case "status": // вывод информации о репозитории
 		proc.RepoStatus(repoPtr)

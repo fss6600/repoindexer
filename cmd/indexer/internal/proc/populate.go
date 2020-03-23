@@ -11,11 +11,10 @@ import (
 	"github.com/pmshoot/repoindexer/cmd/indexer/internal/utils"
 )
 
-const indexgz string = "index.gz"
-
 var err error
 
 func Populate(r *obj.Repo) error {
+	CheckRegl(r.Path())
 	type packages map[string]obj.HashedPackData
 	packCh := make(chan obj.HashedPackData)
 	packDataList := packages{}
@@ -30,7 +29,7 @@ func Populate(r *obj.Repo) error {
 	var jsonData []byte
 	jsonData, _ = json.MarshalIndent(packDataList, "", "  ")
 
-	fp := path.Join(r.Path(), indexgz)
+	fp := path.Join(r.Path(), obj.Indexgz)
 
 	// выгрузка данныз из БД в json файл
 	err = writeGzip(jsonData, fp)

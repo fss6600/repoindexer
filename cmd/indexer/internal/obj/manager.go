@@ -9,12 +9,20 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"time"
+
+	"github.com/mattn/go-sqlite3"
 
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/pmshoot/repoindexer/cmd/indexer/internal/utils"
 )
 
-const fileDBName string = "index.db"
+const (
+	fileDBName string = "index.db"
+	Indexgz    string = "index.gz"
+)
+
+type ErrAlias error
 
 type ErrAlias error
 
@@ -24,7 +32,8 @@ type Repo struct {
 	db   *sql.DB
 	//FullMode      bool //?
 	disPacks    []string  // список заблокированных пакетов
-	actPacks    []string  // список активных (актуальных) пакетов
+	actPacks    []string  // список активных (актуальных) пакетов  !!! change!
+	indPacks    []string  // список проиндексированных пакетов
 	stmtAddFile *sql.Stmt // предустановка запроса на добавление данных файла пакета в БД
 	stmtDelFile *sql.Stmt // предустановка запроса на удаление данных файла пакетав БД
 	stmtUpdFile *sql.Stmt // предустановка запроса на изменение данных файла пакета в БД
@@ -103,9 +112,9 @@ func (r *Repo) Close() {
 
 // PackageID возвращает ID пакета
 func (r *Repo) PackageID(pack string) (id int64) {
-	err := r.db.QueryRow("SELECT id FROM packages WHERE name=?;", pack).Scan(&id)
+	err := r.db.QueryRow("SELECT id FROM packages WHERE Name=?;", pack).Scan(&id)
 	if err == sql.ErrNoRows {
-		res, err := r.db.Exec("INSERT INTO packages ('name', 'hash') VALUES (?, 0)", pack)
+		res, err := r.db.Exec("INSERT INTO packages ('Name', 'hash') VALUES (?, 0)", pack)
 		if err != nil {
 			log.Fatalf("create pack [ %v ] record in db: %v", pack, err)
 		}
@@ -116,7 +125,7 @@ func (r *Repo) PackageID(pack string) (id int64) {
 
 // Alias возвращает псевдоним пакета при наличии
 func (r *Repo) Alias(pack string) (alias string) {
-	_ = r.db.QueryRow("SELECT alias FROM aliases WHERE name=?;", pack).Scan(&alias)
+	_ = r.db.QueryRow("SELECT alias FROM aliases WHERE Name=?;", pack).Scan(&alias)
 	return
 }
 
@@ -124,7 +133,11 @@ func (r *Repo) Alias(pack string) (alias string) {
 func (r *Repo) Aliases() [][]string {
 	var aliases [][]string
 	var alias, name string
+<<<<<<< HEAD
 	rows, _ := r.db.Query("SELECT alias, name FROM aliases ORDER BY alias;")
+=======
+	rows, _ := r.db.Query("SELECT alias, Name FROM aliases ORDER BY alias;")
+>>>>>>> e291739525268f08b2ebe19b20fc56611ccce36a
 	defer rows.Close()
 	for rows.Next() {
 		var aliasPair []string
@@ -141,7 +154,11 @@ func (r *Repo) SetAlias(alias []string) error {
 	if !r.PackIsActive(alias[1]) {
 		return ErrAlias(fmt.Errorf("пакет [ %v ] не найден или заблокирован\n", alias[1]))
 	}
+<<<<<<< HEAD
 	if res, err := r.db.Exec("INSERT INTO aliases (alias,name) VALUES (?, ?);", alias[0], alias[1]); err != nil {
+=======
+	if res, err := r.db.Exec("INSERT INTO aliases (alias,Name) VALUES (?, ?);", alias[0], alias[1]); err != nil {
+>>>>>>> e291739525268f08b2ebe19b20fc56611ccce36a
 		switch err.(type) {
 		case sqlite3.Error:
 			if err.(sqlite3.Error).Code == sqlite3.ErrConstraint {
@@ -166,8 +183,23 @@ func (r *Repo) DelAlias(alias string) error {
 	return nil
 }
 
+<<<<<<< HEAD
+=======
+//... IndexedPacks
+func (r *Repo) IndexedPacks() []string { //todo в горутину
+	if len(r.indPacks) == 0 {
+		ch := make(chan string)
+		go r.indexedPack(ch)
+		for name := range ch {
+			r.indPacks = append(r.indPacks, name)
+		}
+	}
+	return r.indPacks
+}
+
+>>>>>>> e291739525268f08b2ebe19b20fc56611ccce36a
 // ActivePacks кэширует и возвращает список пакетов в репозитории, за исключением заблокированных
-func (r *Repo) ActivePacks() []string {
+func (r *Repo) ActivePacks() []string { //todo в горутину
 	if len(r.actPacks) == 0 {
 		ch := make(chan string, 3)
 		go utils.DirList(r.Path(), ch)
@@ -183,9 +215,9 @@ func (r *Repo) ActivePacks() []string {
 }
 
 // DisabledPacks кэширует и возвращает список заблокированных пакетов репозитория
-func (r *Repo) DisabledPacks() []string {
+func (r *Repo) DisabledPacks() []string { //todo в горутину
 	if len(r.disPacks) == 0 {
-		rows, err := r.db.Query("SELECT name FROM excludes;")
+		rows, err := r.db.Query("SELECT Name FROM excludes;")
 		if err != nil {
 			log.Fatalf("error select disabled packs: %v", err)
 		}
@@ -209,7 +241,7 @@ type HashedPackData struct {
 
 //...
 func (r *Repo) HashedPackages(packs chan HashedPackData) {
-	rows, err := r.db.Query("SELECT id, name, hash FROM packages ORDER BY name;")
+	rows, err := r.db.Query("SELECT id, Name, hash FROM packages ORDER BY Name;")
 	if err == sql.ErrNoRows {
 		close(packs)
 		return
@@ -313,6 +345,15 @@ func (r *Repo) FilesPackDB(id int64) ([]FileInfo, error) { // todo - на гор
 	return fdataList, nil
 }
 
+func (r *Repo) PackIsIndexed(name string) bool {
+	for _, fn := range r.IndexedPacks() {
+		if name == fn {
+			return true
+		}
+	}
+	return false
+}
+
 //...
 func (r *Repo) PackIsBlocked(name string) bool {
 	for _, fn := range r.DisabledPacks() {
@@ -404,11 +445,23 @@ func (r *Repo) CleanPacks() {
 
 }
 
+// indexedPack передает через канал список проиндексированных пакетов репозитория
+func (r *Repo) indexedPack(ch chan<- string) {
+	rows, _ := r.db.Query("SELECT name FROM packages ORDER BY name;")
+	var pack string
+	defer rows.Close()
+	for rows.Next() {
+		_ = rows.Scan(&pack)
+		ch <- pack
+	}
+	close(ch)
+}
+
 //...
-func (r *Repo) packages() []string {
+func (r *Repo) packages() []string { // todo: в горутину ^^^
 	var packs []string
 	var name string
-	rows, _ := r.db.Query("SELECT name FROM packages ORDER BY name;")
+	rows, _ := r.db.Query("SELECT Name FROM packages ORDER BY Name;")
 	defer rows.Close()
 	for rows.Next() {
 		_ = rows.Scan(&name)
@@ -431,7 +484,7 @@ func (r *Repo) DisablePack(pack string) error {
 
 //...
 func (r *Repo) EnablePack(pack string) error {
-	res, err := r.db.Exec("DELETE FROM excludes WHERE name=?;", pack)
+	res, err := r.db.Exec("DELETE FROM excludes WHERE Name=?;", pack)
 	if err != nil {
 		return fmt.Errorf(":EnablePack: %v", pack)
 	}
@@ -443,7 +496,7 @@ func (r *Repo) EnablePack(pack string) error {
 
 //...
 func (r *Repo) RemovePack(pack string) {
-	res, err := r.db.Exec("DELETE FROM packages WHERE name=?;", pack)
+	res, err := r.db.Exec("DELETE FROM packages WHERE Name=?;", pack)
 	if err != nil {
 		fmt.Println("error remove pack", pack)
 	}
@@ -451,6 +504,30 @@ func (r *Repo) RemovePack(pack string) {
 		fmt.Println("должна быть удалена 1 запись: 0")
 	}
 	fmt.Printf("заблокирован: [ %v ]", pack)
+}
+
+func (r *Repo) DBCleanPackages() error {
+	_, err := r.db.Exec("DELETE FROM packages;")
+	if err != nil {
+		return fmt.Errorf(":DBCleanPackages:%v", err)
+	}
+	return nil
+}
+
+func (r *Repo) DBCleanAliases() error {
+	_, err := r.db.Exec("DELETE FROM aliases;")
+	if err != nil {
+		return fmt.Errorf(":DBCleanAliases:%v", err)
+	}
+	return nil
+}
+
+func (r *Repo) DBCleanStatus() error {
+	_, err := r.db.Exec("DELETE FROM excludes;")
+	if err != nil {
+		return fmt.Errorf(":DBCleanStatus:%v", err)
+	}
+	return nil
 }
 
 // todo: пересмотреть на расчет суммы частями
@@ -493,6 +570,98 @@ func (r *Repo) SetPrepare() (err error) {
 		return err
 	}
 	return nil
+}
+
+// ...
+type RepoStData struct {
+	TotalCnt   int       // общее количество пакетов
+	IndexedCnt int       // количество проиндексированных пакетов
+	BlockedCnt int       // количество заблокированных
+	IndexSize  int64     // размер индекс-файла в байтах
+	IndexMDate time.Time // дата изменения индекс-файла
+	DBSize     int64     // размер файла БД в байтах
+	DBMDate    time.Time // дата изменения файла БД
+	HashSize   int64     // размер хэш-файла в байтах
+	HashMDate  time.Time // дата изменения хэш-файла
+}
+
+//...
+func (r *Repo) Status() *RepoStData {
+	data := new(RepoStData)
+	// количество активных пакетов
+	if err := r.db.QueryRow("SELECT COUNT() FROM packages;").Scan(&data.IndexedCnt); err != nil {
+		panic(fmt.Errorf("manager::Status:%v", err))
+	}
+
+	// количество заблокированных
+	if err := r.db.QueryRow("SELECT COUNT() FROM excludes;").Scan(&data.BlockedCnt); err != nil {
+		panic(fmt.Errorf("manager::Status:%v", err))
+	}
+
+	// количество пакетов в репозитории
+	ch := make(chan string)
+	go utils.DirList(r.Path(), ch)
+	for _ = range ch {
+		data.TotalCnt += 1
+	}
+
+	// данные БД файла
+	fInfo, err := os.Stat(dbPath(r.Path()))
+	if err != nil {
+		panic(fmt.Errorf("manager::Status:%v", err))
+	}
+	data.DBSize = fInfo.Size()
+	data.DBMDate = fInfo.ModTime()
+
+	// данные индекс файла
+	fInfo, err = os.Stat(filepath.Join(r.Path(), Indexgz))
+	if err != nil {
+		panic(fmt.Errorf("manager::Status:%v", err))
+	}
+	data.IndexSize = fInfo.Size()
+	data.IndexMDate = fInfo.ModTime()
+
+	// данные индекс-хэш файла
+	fInfo, err = os.Stat(filepath.Join(r.Path(), Indexgz+".sha1"))
+	if err != nil {
+		panic(fmt.Errorf("manager::Status:%v", err))
+	}
+	data.HashSize = fInfo.Size()
+	data.HashMDate = fInfo.ModTime()
+
+	return data
+}
+
+type ListData struct {
+	Status int8
+	Name   string
+}
+
+// ...
+func (r *Repo) List(ch chan<- *ListData) {
+	dir := make(chan string)
+	go utils.DirList(r.Path(), dir)
+	for name := range dir {
+		data := new(ListData)
+		alias := r.Alias(name)
+		if alias != "" {
+			data.Name = fmt.Sprintf("%v (%v)", name, alias)
+		} else {
+			data.Name = name
+		}
+		if r.PackIsBlocked(name) {
+			// блок
+			data.Status = 0
+		} else if r.PackIsIndexed(name) {
+			// актл
+			data.Status = 1
+		} else {
+			// !инд
+			data.Status = -1
+		}
+		ch <- data
+	}
+	close(ch)
 }
 
 // InitDB инициализирует файл db

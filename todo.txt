@@ -1,20 +1,30 @@
+<<<<<<< HEAD
 todo now: вывод статуса (инфо) рпеозитория
+=======
+todo now:
+>>>>>>> e291739525268f08b2ebe19b20fc56611ccce36a
 
 todo: обработка пакетов не чувствительна к регистру
 
 
 todo: обработка флагов командной строки - cobra: https://github.com/spf13/cobra
+<<<<<<< HEAD
 todo: log info, debug
+=======
+todo: добавить логгер с форматированием и цветным выводом инфо в консоли log info, debug
+>>>>>>> e291739525268f08b2ebe19b20fc56611ccce36a
 
 todo: обработку пакетов в транзакции
-todo: добавить проверку на режим регламента при индескации, выгрузке
 
 todo: чтение данных о файлах в репозитории (список) и в БД -  в горутину для параллельного исполнения
 todo: хэш сумма пакета (на основании хэш-суммы файлов в пакете) - частями. при наличии большого количества файлов в пакете ???
 
 todo: индикатор процесса выполнения в процентах
 todo: вывод информации только обо обработанных пакетах (название необработанного завменяется на следующий)
+<<<<<<< HEAD
 todo: добавить логгер с цветным выводом инфо в консоли
+=======
+>>>>>>> e291739525268f08b2ebe19b20fc56611ccce36a
 commands:
 + init
 + index [packname ...]
@@ -23,8 +33,14 @@ commands:
 + disable packname ...
 + alias set aliasname=packetname ...
 + alias del aliasname [aliasname1] ...
+<<<<<<< HEAD
 . status
 - cleardb [index | alias | status | all]
+=======
++ status todo форматирование вывода
+- list [all | disabled | active]
++ cleardb [index | alias | status | all]
+>>>>>>> e291739525268f08b2ebe19b20fc56611ccce36a
 - clean //'db profilactics'
 
 flags:
@@ -32,7 +48,7 @@ flags:
 -h 'help'
 -d 'debug mode'
 -p 'populate data after index'
--f 'full index mode' - сброс данных БД, индексирование
+-f 'full index mode' - сброс данных БД перед индексированием
 
 
 // next version

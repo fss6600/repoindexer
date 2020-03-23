@@ -20,7 +20,7 @@ func SetReglamentMode(repoPath, mode string) {
 	)
 	fRegl := filepath.Join(repoPath, fnReglament)
 	// проверка на наличие файла-флага, определение режима реглавмета
-	modeOn := utils.FileExists(fRegl)
+	modeOn := ReglIsSet(fRegl)
 
 	switch mode {
 	// вывод режима регламента
@@ -57,4 +57,13 @@ func SetReglamentMode(repoPath, mode string) {
 	}
 }
 
+func ReglIsSet(reglf string) bool {
+	return utils.FileExists(reglf)
+}
 
+func CheckRegl(repoPath string) {
+	fRegl := filepath.Join(repoPath, fnReglament)
+	if !ReglIsSet(fRegl) {
+		panic("не установлен режим регламента!")
+	}
+}

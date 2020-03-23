@@ -11,6 +11,8 @@ import (
 
 // Index обработка и индексация пакетов в репозитории
 func Index(r *obj.Repo, packs []string) (err error) {
+	CheckRegl(r.Path())
+
 	if len(packs) == 0 {
 		// получает актуальные активные пакеты в репозитории
 		packs = r.ActivePacks()
