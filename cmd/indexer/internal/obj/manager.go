@@ -147,7 +147,7 @@ func (r *Repo) SetAlias(alias []string) error {
 	if !r.PackIsActive(alias[1]) {
 		return ErrAlias(fmt.Errorf("пакет [ %v ] не найден или заблокирован\n", alias[1]))
 	}
-	if res, err := r.db.Exec("INSERT INTO aliases (alias,Name) VALUES (?, ?);", alias[0], alias[1]); err != nil {
+	if res, err := r.db.Exec("INSERT INTO aliases (alias,name) VALUES (?, ?);", alias[0], alias[1]); err != nil {
 		switch err.(type) {
 		case sqlite3.Error:
 			if err.(sqlite3.Error).Code == sqlite3.ErrConstraint {

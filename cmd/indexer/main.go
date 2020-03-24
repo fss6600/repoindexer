@@ -164,20 +164,18 @@ func main() {
 			aliases = cmdAlias.Args()[1:]
 		}
 		proc.Alias(repoPtr, cmd, aliases)
-
-    case "list":
-        var cmd string
-        cmdAlias := flag.NewFlagSet("list", flag.ErrorHandling(1))
-        if err := cmdAlias.Parse(flag.Args()[1:]); err != nil {
-            panic(fmt.Errorf(":list: %v", err))
-        }
-        if len(cmdAlias.Args()) == 0 {
-            cmd = "all"
-        } else {
-            cmd = cmdAlias.Args()[0]
-        }
-        proc.List(repoPtr, cmd)
-
+	case "list":
+		var cmd string
+		cmdAlias := flag.NewFlagSet("list", flag.ErrorHandling(1))
+		if err := cmdAlias.Parse(flag.Args()[1:]); err != nil {
+			panic(fmt.Errorf(":list: %v", err))
+		}
+		if len(cmdAlias.Args()) == 0 {
+			cmd = "all"
+		} else {
+			cmd = cmdAlias.Args()[0]
+		}
+		proc.List(repoPtr, cmd)
 	case "clean": // профилактика БД
 
 	case "cleardb": // очистка БД от данных
