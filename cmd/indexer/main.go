@@ -14,12 +14,11 @@ import (
 const version string = "0.0.1a"
 
 var repoPath string
-var flagFullMode, flagPopIndex, flagDebug bool
+var flagPopIndex, flagDebug bool
 
 func init() {
 	// обработка флагов и переменных
 	flag.StringVar(&repoPath, "repopath", "", "полный путь к репозиторию")
-	flag.BoolVar(&flagFullMode, "f", false, "режим полной индексации")
 	flag.BoolVar(&flagPopIndex, "p", false, "выгрузить данные в индекс-файл после индексации")
 	flag.BoolVar(&flagDebug, "d", false, "режим отладки")
 	flag.Parse()
@@ -78,10 +77,6 @@ func main() {
 		log.Fatalln(err)
 	}
 	defer repoPtr.Close()
-
-	//if flagFullMode {
-	//	repoPtr.SetFullMode()
-	//}
 
 	switch cmd {
 	//индексация файлов репозитория с записью в БД
