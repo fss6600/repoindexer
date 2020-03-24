@@ -184,6 +184,17 @@ func (r *Repo) IndexedPacks() []string { //todo в горутину
 	return r.indPacks
 }
 
+//... NoIndexedPacks
+func (r *Repo) NoIndexedPacks() []string { //todo в горутину
+	lst := make([]string, 0)
+	for _, pack := range r.ActivePacks() {
+		if !r.PackIsIndexed(pack) {
+			lst = append(lst, pack)
+		}
+	}
+	return lst
+}
+
 // ActivePacks кэширует и возвращает список пакетов в репозитории, за исключением заблокированных
 func (r *Repo) ActivePacks() []string { //todo в горутину
 	if len(r.actPacks) == 0 {

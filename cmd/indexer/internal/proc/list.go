@@ -6,11 +6,14 @@ import (
 	"github.com/pmshoot/repoindexer/cmd/indexer/internal/obj"
 )
 
+// ...
 func List(r *obj.Repo, cmd string) {
 	switch cmd {
 	case "all":
-		line := fmt.Sprintln("[%4v] %v")
 		ch := make(chan *obj.ListData)
+		line := fmt.Sprintln("[%4v] %v")
+		fmt.Printf(line, "СТАТ", "ПАКЕТ (ПСЕВДОНИМ)")
+		fmt.Println("------", "-----------------")
 		go r.List(ch)
 		for data := range ch {
 			switch data.Status {
@@ -22,12 +25,15 @@ func List(r *obj.Repo, cmd string) {
 				fmt.Printf(line, "!инд", data.Name)
 			}
 		}
-
-	case "active":
-		for _, pack := range r.ActivePacks() {
+	case "indexed":
+		for _, pack := range r.IndexedPacks() {
 			fmt.Println(pack)
 		}
-	case "disabled":
+	case "noindexed":
+		for _, pack := range r.NoIndexedPacks() {
+			fmt.Println(pack)
+		}
+	case "blocked":
 		for _, pack := range r.DisabledPacks() {
 			fmt.Println(pack)
 		}

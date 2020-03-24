@@ -1,5 +1,6 @@
 todo now:
 
+todo: пересмотреть категории пакетов - блокировка, активный (проиндексированный), непроиндексированный
 todo: обработка пакетов не чувствительна к регистру
 
 
@@ -22,7 +23,7 @@ commands:
 + alias set aliasname=packetname ...
 + alias del aliasname [aliasname1] ...
 + status todo форматирование вывода
-- list [all | disabled | active]
++ list [ all | blocked | indexed | noindexed ]
 + cleardb [index | alias | status | all]
 - clean //'db profilactics'
 
