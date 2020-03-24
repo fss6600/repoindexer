@@ -37,7 +37,7 @@ func checkPanic() {
 
 func main() {
 	// вывод версии
-	if flagVersion {
+	if flagVersion { // todo убрать -v
 		fmt.Printf("Версия: %v\n", version)
 		return
 	}
@@ -54,8 +54,8 @@ func main() {
 		return
 	}
 	cmd := flag.Args()[0]
+	// отложенная обработка сообщений об ошибках
 	defer checkPanic()
-
 	// обработка команд, не требующих подключения к БД
 	switch cmd {
 	// инициализация репозитория
@@ -78,7 +78,6 @@ func main() {
 		proc.SetReglamentMode(repoPath, mode)
 		return
 	}
-
 	// инициализация и подключение к БД
 	repoPtr := obj.NewRepoObj(repoPath)
 	if err := repoPtr.OpenDB(); err != nil {
@@ -148,8 +147,8 @@ func main() {
 		if err := proc.SetPackStatus(repoPtr, status, packetsList); err != nil {
 			log.Fatalf("ошибка установления статуса пакетов: %v", err)
 		}
-
-	case "alias": // установка/снятие псевдонимов пакетов
+	// установка/снятие псевдонимов пакетов
+	case "alias":
 		var cmd string
 		var aliases []string
 		cmdAlias := flag.NewFlagSet("alias", flag.ErrorHandling(1))
@@ -164,6 +163,7 @@ func main() {
 			aliases = cmdAlias.Args()[1:]
 		}
 		proc.Alias(repoPtr, cmd, aliases)
+	// вывод перечня и статус пакетов в репозитории
 	case "list":
 		var cmd string
 		cmdAlias := flag.NewFlagSet("list", flag.ErrorHandling(1))
@@ -176,9 +176,20 @@ func main() {
 			cmd = cmdAlias.Args()[0]
 		}
 		proc.List(repoPtr, cmd)
-	case "clean": // профилактика БД
-
-	case "cleardb": // очистка БД от данных
+	// вывод версии программы, БД
+	case "version":
+		vMaj, vMin, err := repoPtr.VersionDB()
+		if err != nil {
+			panic(err)
+		}
+		fmt.Printf("Версия программы\t: %v\n", version)
+		fmt.Printf("Версия БД программы\t: %d.%d\n", obj.DBVersionMajor, obj.DBVersionMinor)
+		fmt.Printf("Версия БД репозитория\t: %d.%d\n", vMaj, vMin)
+	// упаковка и переиндексация данных в БД
+	case "clean":
+		repoPtr.Clean()
+	// очистка БД от данных
+	case "cleardb":
 		var cmd string
 		cmdAlias := flag.NewFlagSet("cleardb", flag.ErrorHandling(1))
 		if err := cmdAlias.Parse(flag.Args()[1:]); err != nil {
@@ -190,10 +201,9 @@ func main() {
 			cmd = cmdAlias.Args()[0]
 		}
 		proc.ClearDB(repoPtr, cmd)
-
-	case "status": // вывод информации о репозитории
+	// вывод информации о репозитории
+	case "status":
 		proc.RepoStatus(repoPtr)
-
 	default:
 		fmt.Println("команда не опознана")
 	}

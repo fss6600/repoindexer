@@ -27,7 +27,7 @@ commands:
 + status todo форматирование вывода
 + list [ all | blocked | indexed | noindexed ]
 + cleardb [index | alias | status | all]
-- clean //'db profilactics'
++ clean
 
 flags:
 -repopath /path/to/repo

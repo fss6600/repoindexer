@@ -17,8 +17,10 @@ import (
 )
 
 const (
-	fileDBName string = "index.db"
-	Indexgz    string = "index.gz"
+	fileDBName     string = "index.db"
+	Indexgz        string = "index.gz"
+	DBVersionMajor int64  = 1
+	DBVersionMinor int64  = 3
 )
 
 type ErrAlias error
@@ -81,11 +83,15 @@ func (r *Repo) OpenDB() error {
 	if err != nil {
 		return err
 	}
+	r.db = db
+	// check DB
+	if err = r.checkDB(); err != nil {
+		return err
+	}
 	// инициализация поддержки первичных ключей в БД
-	if _, err := db.Exec("PRAGMA foreign_keys = ON;"); err != nil {
+	if _, err := r.db.Exec("PRAGMA foreign_keys = ON;"); err != nil {
 		fmt.Println("error init PRAGMA", err)
 	}
-	r.db = db
 	return nil
 }
 
@@ -100,10 +106,30 @@ func (r *Repo) Close() {
 	if r.stmtUpdFile != nil {
 		_ = r.stmtUpdFile.Close()
 	}
+	// упаковка данных, переиндексация
 	if r.db != nil {
-		if err := r.db.Close(); err != nil {
-			log.Println("error close db:", err)
+		if _, err := r.db.Exec("PRAGMA optimize"); err != nil {
+			fmt.Println("ошибка оптимизации БД: ", err)
 		}
+		if err := r.db.Close(); err != nil {
+			log.Println("ошибка закрытия БД:", err)
+		}
+	}
+}
+
+func (r *Repo) Clean() {
+	var err error
+	fmt.Print("упаковка БД: ")
+	if r.db != nil {
+		if _, err = r.db.Exec("VACUUM"); err != nil {
+			fmt.Println("ошибка очистки БД: ", err)
+		}
+		if _, err = r.db.Exec("REINDEX"); err != nil {
+			fmt.Println("ошибка перестройки идекса таблиц БД: ", err)
+		}
+	}
+	if err == nil {
+		fmt.Println("OK")
 	}
 }
 
@@ -661,6 +687,43 @@ func (r *Repo) List(ch chan<- *ListData) {
 	close(ch)
 }
 
+func (r *Repo) checkDB() error {
+	if rows, err := r.db.Query("PRAGMA integrity_check ;"); err != nil {
+		return err
+	} else {
+		var res interface{}
+		for rows.Next() {
+			rows.Scan(&res)
+			if res != "ok" {
+				return errors.New("ошибка целостности БД; требуется повторная инициализация")
+			}
+		}
+	}
+
+	vmaj, vmin, err := r.VersionDB()
+	if err != nil {
+		return err
+	} // todo - миграцию при поднятии версии программы
+	if vmaj < DBVersionMajor || vmin < DBVersionMinor {
+		return fmt.Errorf("версия БД [%d.%d] не соответствует требуемой[%d.%d]; произведите инициализацию", // миграцию?
+			vmaj, vmin, DBVersionMajor, DBVersionMinor)
+	} else if vmaj > DBVersionMajor || vmin > DBVersionMinor {
+		return fmt.Errorf("версия БД [%d.%d] старше требуемой[%d.%d]; возможно вы используете старую версию программы",
+			vmaj, vmin, DBVersionMajor, DBVersionMinor)
+	}
+	return nil
+}
+
+//..
+func (r *Repo) VersionDB() (int64, int64, error) {
+	var vmaj, vmin int64
+	err := r.db.QueryRow("SELECT vers_major, vers_minor FROM info WHERE id=1;").Scan(&vmaj, &vmin)
+	if err != nil {
+		return 0, 0, errors.New("нет данных о версии БД; произведите инициализацию")
+	}
+	return vmaj, vmin, nil
+}
+
 // InitDB инициализирует файл db
 func InitDB(path string) error {
 	fp := dbPath(path)
@@ -676,6 +739,10 @@ func InitDB(path string) error {
 		_ = db.Close()
 	}()
 	if _, err := db.Exec(initSQL); err != nil {
+		return err
+	}
+	if _, err := db.Exec("INSERT INTO info (id, vers_major, vers_minor) VALUES (?, ?, ?);",
+		1, DBVersionMajor, DBVersionMinor); err != nil {
 		return err
 	}
 	fmt.Println("репозиторий проинициализирован")
