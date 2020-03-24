@@ -14,13 +14,12 @@ import (
 const version string = "0.0.1a"
 
 var repoPath string
-var flagVersion, flagFullMode, flagPopIndex, flagDebug bool
+var flagFullMode, flagPopIndex, flagDebug bool
 
 func init() {
 	// обработка флагов и переменных
 	flag.StringVar(&repoPath, "repopath", "", "полный путь к репозиторию")
 	flag.BoolVar(&flagFullMode, "f", false, "режим полной индексации")
-	flag.BoolVar(&flagVersion, "v", false, "версия программы")
 	flag.BoolVar(&flagPopIndex, "p", false, "выгрузить данные в индекс-файл после индексации")
 	flag.BoolVar(&flagDebug, "d", false, "режим отладки")
 	flag.Parse()
@@ -36,11 +35,6 @@ func checkPanic() {
 }
 
 func main() {
-	// вывод версии
-	if flagVersion { // todo убрать -v
-		fmt.Printf("Версия: %v\n", version)
-		return
-	}
 	// проверка на наличие пути к репозиторию
 	if repoPath == "" {
 		fmt.Println("не указан путь к репозиторию")
