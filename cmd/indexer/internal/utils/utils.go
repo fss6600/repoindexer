@@ -109,3 +109,13 @@ func CheckError(str string, err *error) {
 		panic(fmt.Errorf("%v: %v", str, *err))
 	}
 }
+
+// обработка вызова panic в любой части программы
+func CheckPanic(debug bool) {
+	if !debug {
+		if r := recover(); r != nil {
+			fmt.Println(r)
+		}
+	}
+
+}
