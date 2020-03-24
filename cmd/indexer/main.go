@@ -5,25 +5,26 @@ package main
 import (
 	"flag"
 	"fmt"
-	"log"
 
 	"github.com/pmshoot/repoindexer/cmd/indexer/internal/obj"
 	"github.com/pmshoot/repoindexer/cmd/indexer/internal/proc"
+	"github.com/pmshoot/repoindexer/cmd/indexer/internal/utils"
 )
 
-const version string = "0.0.1a"
+const version string = "0.0.2a"
 
 var repoPath string
 var flagPopIndex, flagDebug bool
 
 func init() {
 	// обработка флагов и переменных
-	flag.StringVar(&repoPath, "repopath", "", "полный путь к репозиторию")
-	flag.BoolVar(&flagPopIndex, "p", false, "выгрузить данные в индекс-файл после индексации")
-	flag.BoolVar(&flagDebug, "d", false, "режим отладки")
+	flag.StringVar(&repoPath, "r", "", "repopath: полный путь к репозиторию")
+	flag.BoolVar(&flagPopIndex, "p", false, "populate: выгрузить данные в индекс-файл после индексации")
+	flag.BoolVar(&flagDebug, "d", false, "debug: режим отладки")
 	flag.Parse()
 }
 
+// обработка вызова panic в любой части программы
 func checkPanic() {
 	if !flagDebug {
 		if r := recover(); r != nil {
@@ -34,62 +35,61 @@ func checkPanic() {
 }
 
 func main() {
+	const tmplErrMsg = "error::main:"
+	// отложенная обработка сообщений об ошибках
+	defer checkPanic()
+
 	// проверка на наличие пути к репозиторию
 	if repoPath == "" {
-		fmt.Println("не указан путь к репозиторию")
+		panic("не указан путь к репозиторию")
 		// flag.PrintDefaults()
-		return
 	}
 	// проверка на наличие команды и последующая обработка
 	if len(flag.Args()) == 0 {
-		fmt.Println("не указана команда")
+		panic("не указана команда")
 		// flag.PrintDefaults()
-		return
 	}
 	cmd := flag.Args()[0]
-	// отложенная обработка сообщений об ошибках
-	defer checkPanic()
+
 	// обработка команд, не требующих подключения к БД
 	switch cmd {
 	// инициализация репозитория
 	case "init":
-		if err := obj.InitDB(repoPath); err != nil {
-			log.Fatalf("ошибка при инициализации репозитория %v: %v", repoPath, err)
-		}
-		return
+		err := obj.InitDB(repoPath)
+		utils.CheckError(fmt.Sprintf("ошибка при инициализации репозитория %v", repoPath), &err)
+		return // выходим, чтобы не инициализировать подключение к БД
 	// on|off режим регламента
 	case "reglament":
 		var mode string
 		cmdRegl := flag.NewFlagSet("reglament", flag.ErrorHandling(1))
-		if err := cmdRegl.Parse(flag.Args()[1:]); err != nil {
-			log.Fatalln(err)
-		}
+		err := cmdRegl.Parse(flag.Args()[1:])
+		utils.CheckError(tmplErrMsg, &err)
 		if len(cmdRegl.Args()) != 0 {
 			mode = cmdRegl.Arg(0)
 		}
 		// установка режима регламента
 		proc.SetReglamentMode(repoPath, mode)
-		return
+		return // выходим, чтобы не инициализировать подключение к БД
 	}
+
 	// инициализация и подключение к БД
-	repoPtr := obj.NewRepoObj(repoPath)
-	if err := repoPtr.OpenDB(); err != nil {
-		log.Fatalln(err)
-	}
-	defer repoPtr.Close()
+	repoPtr, err := obj.NewRepoObj(repoPath)
+	utils.CheckError(tmplErrMsg, &err)
+	err = repoPtr.OpenDB()
+	utils.CheckError(tmplErrMsg, &err)
+	defer func() {
+		err := repoPtr.Close()
+		utils.CheckError(tmplErrMsg, &err)
+	}()
 
 	switch cmd {
 	//индексация файлов репозитория с записью в БД
 	case "index":
 		cmdIndex := flag.NewFlagSet("index", flag.ErrorHandling(1))
-		if err := cmdIndex.Parse(flag.Args()[1:]); err != nil {
-			log.Fatalln(err)
-		}
-		// индексация репозитория
-		if err := proc.Index(repoPtr, cmdIndex.Args()); err != nil {
-			log.Fatalln("ошибка индексирования репозитория:", err)
-		}
-		// flag p: выгрузка в индекс-файл
+		err := cmdIndex.Parse(flag.Args()[1:])
+		utils.CheckError(tmplErrMsg, &err)
+		proc.Index(repoPtr, cmdIndex.Args())
+		// flag p: при указании - выгрузка в индекс-файл
 		if flagPopIndex {
 			goto DOPOPULATE
 		}
@@ -99,51 +99,31 @@ func main() {
 	// выгрузка данных индексации из БД в Index.json[gz]
 	case "populate":
 		fmt.Println("выгрузка данных в индекс файл")
-		if err := proc.Populate(repoPtr); err != nil {
-			log.Fatalln("ошибка выгрузки индекса:", err)
-		}
-	// активация пакетов в репозитории
-	case "enable":
+		proc.Populate(repoPtr)
+	// активация/блокировка пакетов в репозитории
+	case "enable", "disable":
 		cmdSetStatus := flag.NewFlagSet("setstatus", flag.ErrorHandling(1))
-		if err := cmdSetStatus.Parse(flag.Args()[1:]); err != nil {
-			log.Fatalln(err)
-		}
-		// наименования пакетов
+		err := cmdSetStatus.Parse(flag.Args()[1:])
+		utils.CheckError(tmplErrMsg, &err)
+		// список пакетов из командной строки
 		packetsList := cmdSetStatus.Args()
 		if len(packetsList) == 0 {
-			fmt.Println("укажите по крайней мере один пакет")
-			return
+			panic("укажите по крайней мере один пакет")
 		}
-
-		status := proc.PackStateEnable
-		if err := proc.SetPackStatus(repoPtr, status, packetsList); err != nil {
-			log.Fatalf("ошибка установления статуса пакетов: %v", err)
+		var status proc.PackStatus
+		if cmd == "enable" {
+			status = proc.PackStateEnable
+		} else {
+			status = proc.PackStateDisable
 		}
-	// деактивация пакетов в репозитории
-	case "disable":
-		cmdSetStatus := flag.NewFlagSet("setstatus", flag.ErrorHandling(1))
-		if err := cmdSetStatus.Parse(flag.Args()[1:]); err != nil {
-			log.Fatalln(err)
-		}
-		// наименования пакетов
-		packetsList := cmdSetStatus.Args()
-		if len(packetsList) == 0 {
-			fmt.Println("укажите по крайней мере один пакет")
-			return
-		}
-
-		status := proc.PackStateDisable
-		if err := proc.SetPackStatus(repoPtr, status, packetsList); err != nil {
-			log.Fatalf("ошибка установления статуса пакетов: %v", err)
-		}
-	// установка/снятие псевдонимов пакетов
+		proc.SetPackStatus(repoPtr, status, packetsList)
+	// присвоение/удаление/отображение псевдонимов
 	case "alias":
 		var cmd string
 		var aliases []string
 		cmdAlias := flag.NewFlagSet("alias", flag.ErrorHandling(1))
-		if err := cmdAlias.Parse(flag.Args()[1:]); err != nil {
-			panic(fmt.Errorf(":aliases: %v", err))
-		}
+		err := cmdAlias.Parse(flag.Args()[1:])
+		utils.CheckError(tmplErrMsg, &err)
 		if len(cmdAlias.Args()) == 0 {
 			cmd = ""
 			aliases = nil
@@ -156,9 +136,8 @@ func main() {
 	case "list":
 		var cmd string
 		cmdAlias := flag.NewFlagSet("list", flag.ErrorHandling(1))
-		if err := cmdAlias.Parse(flag.Args()[1:]); err != nil {
-			panic(fmt.Errorf(":list: %v", err))
-		}
+		err := cmdAlias.Parse(flag.Args()[1:])
+		utils.CheckError(tmplErrMsg, &err)
 		if len(cmdAlias.Args()) == 0 {
 			cmd = "all"
 		} else {
@@ -168,22 +147,22 @@ func main() {
 	// вывод версии программы, БД
 	case "version":
 		vMaj, vMin, err := repoPtr.VersionDB()
-		if err != nil {
-			panic(err)
-		}
+		utils.CheckError(tmplErrMsg, &err)
 		fmt.Printf("Версия программы\t: %v\n", version)
 		fmt.Printf("Версия БД программы\t: %d.%d\n", obj.DBVersionMajor, obj.DBVersionMinor)
 		fmt.Printf("Версия БД репозитория\t: %d.%d\n", vMaj, vMin)
 	// упаковка и переиндексация данных в БД
 	case "clean":
-		repoPtr.Clean()
+		fmt.Print("упаковка БД: ")
+		err = repoPtr.Clean()
+		utils.CheckError(tmplErrMsg, &err)
+		fmt.Println("OK")
 	// очистка БД от данных
 	case "cleardb":
 		var cmd string
 		cmdAlias := flag.NewFlagSet("cleardb", flag.ErrorHandling(1))
-		if err := cmdAlias.Parse(flag.Args()[1:]); err != nil {
-			panic(fmt.Errorf(":cleardb: %v", err))
-		}
+		err := cmdAlias.Parse(flag.Args()[1:])
+		utils.CheckError(tmplErrMsg, &err)
 		if len(cmdAlias.Args()) == 0 {
 			cmd = ""
 		} else {
@@ -194,6 +173,6 @@ func main() {
 	case "status":
 		proc.RepoStatus(repoPtr)
 	default:
-		fmt.Println("команда не опознана")
+		panic("команда не опознана")
 	}
 }

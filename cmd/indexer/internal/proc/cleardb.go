@@ -4,17 +4,16 @@ import (
 	"fmt"
 
 	"github.com/pmshoot/repoindexer/cmd/indexer/internal/obj"
+	"github.com/pmshoot/repoindexer/cmd/indexer/internal/utils"
 )
 
 func ClearDB(r *obj.Repo, cmd string) {
+	const tmplErrMsg = "error::cleardb:"
 	switch cmd {
 	case "index", "all":
 		fmt.Print("очистка данных индексации пакетов...")
 		err := r.DBCleanPackages()
-		if err != nil {
-			fmt.Println()
-			panic(fmt.Sprintf(":cleardb::index:%v", err))
-		}
+		utils.CheckError(fmt.Sprintf("\n%v:index:", tmplErrMsg), &err)
 		fmt.Println("OK")
 		if cmd != "all" {
 			break
@@ -23,10 +22,7 @@ func ClearDB(r *obj.Repo, cmd string) {
 	case "alias":
 		fmt.Print("очистка данных псевдонимов...")
 		err := r.DBCleanAliases()
-		if err != nil {
-			fmt.Println()
-			panic(fmt.Sprintf(":cleardb::alias:%v", err))
-		}
+		utils.CheckError(fmt.Sprintf("\n%v:alias:", tmplErrMsg), &err)
 		fmt.Println("OK")
 		if cmd != "all" {
 			break
@@ -35,10 +31,7 @@ func ClearDB(r *obj.Repo, cmd string) {
 	case "status":
 		fmt.Print("очистка данных блокировки...")
 		err := r.DBCleanStatus()
-		if err != nil {
-			fmt.Println()
-			panic(fmt.Sprintf(":cleardb::status:%v", err))
-		}
+		utils.CheckError(fmt.Sprintf("\n%v:status:", tmplErrMsg), &err)
 		fmt.Println("OK")
 	default:
 		panic("укажите одну категорию из списка: index | alias | status | all")

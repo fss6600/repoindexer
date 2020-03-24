@@ -3,7 +3,6 @@ package proc
 import (
 	"fmt"
 	"io/ioutil"
-	"log"
 	"os"
 	"path/filepath"
 
@@ -14,13 +13,14 @@ const fnReglament string = "__REGLAMENT__"
 
 // SetReglamentMode активирует/деактивирует режим регламента репозитория
 func SetReglamentMode(repoPath, mode string) {
+	const tmplErrMsg = "error::packages::SetReglamentMode:"
 	const (
 		reglOnMessage  string = "режим регламента активирован [on]"
 		reglOffMessage string = "режим регламента деактивирован [off]"
 	)
 	fRegl := filepath.Join(repoPath, fnReglament)
 	// проверка на наличие файла-флага, определение режима реглавмета
-	modeOn := ReglIsSet(fRegl)
+	modeOn := reglIsSet(fRegl)
 
 	switch mode {
 	// вывод режима регламента
@@ -30,40 +30,38 @@ func SetReglamentMode(repoPath, mode string) {
 		} else {
 			fmt.Println(reglOffMessage)
 		}
-	// активация режима регламента
+		// активация режима регламента
 	case "on":
 		// регламент уже активирован - вывод сообщения и информации кто активировал
 		if modeOn {
 			owner, _ := ioutil.ReadFile(fRegl)
 			fmt.Println(reglOnMessage, string(owner))
-			// авктивация реглавмента с записью информации кто активировал
+			// активация регламента с записью информации кто активировал
 		} else {
-			if err := ioutil.WriteFile(fRegl, utils.TaskOwnerInfo(), 0644); err != nil {
-				log.Fatal(err)
-			}
+			err := ioutil.WriteFile(fRegl, utils.TaskOwnerInfo(), 0644)
+			utils.CheckError(fmt.Sprintf("%v", tmplErrMsg), &err)
 			fmt.Println(reglOnMessage)
 		}
 	// деактивация режима реглавмента
 	case "off":
 		// регламент активирован - удаляем файл
 		if modeOn {
-			if err := os.Remove(fRegl); err != nil {
-				log.Fatalln(err)
-			}
+			err := os.Remove(fRegl)
+			utils.CheckError(fmt.Sprintf("%v", tmplErrMsg), &err)
 		}
 		fmt.Println(reglOffMessage)
 	default:
-		fmt.Printf("неверный режим регламента: %s", mode)
+		panic(fmt.Sprintf("неверный режим регламента: %s", mode))
 	}
 }
 
-func ReglIsSet(reglf string) bool {
+func reglIsSet(reglf string) bool {
 	return utils.FileExists(reglf)
 }
 
 func CheckRegl(repoPath string) {
 	fRegl := filepath.Join(repoPath, fnReglament)
-	if !ReglIsSet(fRegl) {
+	if !reglIsSet(fRegl) {
 		panic("не установлен режим регламента!")
 	}
 }

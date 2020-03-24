@@ -4,21 +4,20 @@ import (
 	"fmt"
 
 	"github.com/pmshoot/repoindexer/cmd/indexer/internal/obj"
+	"github.com/pmshoot/repoindexer/cmd/indexer/internal/utils"
 )
 
 func RepoStatus(r *obj.Repo) {
 	/*
-			todo - сообщения об отсутствии служебных файлов репозитория
-			todo - формат даты файлов
-	>>>>>>> e291739525268f08b2ebe19b20fc56611ccce36a
-
-
-			todo - общий формат вывода
+		todo - сообщения об отсутствии служебных файлов репозитория
+		todo - формат даты файлов
 	*/
+	const tmplErrMsg = "error::status:"
 	const timeLayout = "2006-01-02 15:04:05"
 	fmt.Print("Статус репозитория\t\t")
 	SetReglamentMode(r.Path(), "")
-	rData := *r.Status()
+	rData, err := r.Status()
+	utils.CheckError(tmplErrMsg, &err)
 	fmt.Printf("Пакетов в репозитории \t\t%d\n", rData.TotalCnt)
 	fmt.Printf("Проиндексированных пакетов \t%d\n", rData.IndexedCnt)
 	fmt.Printf("Заблокированных пакетов \t%d\n", rData.BlockedCnt)
@@ -27,6 +26,6 @@ func RepoStatus(r *obj.Repo) {
 	fmt.Printf("index.db \t%d\t байт от %v\n", rData.DBSize, rData.DBMDate.Format(timeLayout))
 	fmt.Printf("index.gz.sha1 \t%d\t байт от %v\n", rData.HashSize, rData.HashMDate.Format(timeLayout))
 	if rData.DBMDate.UnixNano() > rData.IndexMDate.UnixNano() {
-		fmt.Println("\nиндекс-файл старше файла БД - произведите выгрузку данных командой 'populate'")
+		fmt.Println("\n\tиндекс-файл старше файла БД - произведите выгрузку данных командой 'populate'")
 	}
 }

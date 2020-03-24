@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"compress/gzip"
 	"crypto"
 	"fmt"
 	"io"
@@ -62,6 +63,44 @@ func DirList(fp string, dirs chan<- string) {
 		}
 	}
 	close(dirs)
+}
+
+func WriteGzip(jsonData []byte, fp string) error {
+	errMsg := fmt.Sprintf(":WriteGzip: %v")
+	indexFile, err := os.Create(fp)
+	if err != nil {
+		return fmt.Errorf(errMsg, err)
+	}
+	zw := gzip.NewWriter(indexFile)
+	defer func() {
+		_ = zw.Close()
+		_ = indexFile.Close()
+	}()
+
+	_, err = zw.Write(jsonData)
+	if err != nil {
+		return fmt.Errorf(errMsg, err)
+	}
+	return nil
+}
+
+func WriteGzipHash(fp, hash string) error {
+	errMsg := fmt.Sprintf(":writeGzipHash: %v")
+	indexFileHash, err := os.Create(fp + ".sha1")
+	if err != nil {
+		return fmt.Errorf(errMsg, err)
+	}
+	defer func() {
+		if err := indexFileHash.Close(); err != nil {
+			panic(err)
+		}
+	}()
+
+	_, err = indexFileHash.Write([]byte(hash))
+	if err != nil {
+		return fmt.Errorf(errMsg, err)
+	}
+	return nil
 }
 
 //...
