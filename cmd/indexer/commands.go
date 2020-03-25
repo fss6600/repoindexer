@@ -43,7 +43,7 @@ func Run() {
 		utils.CheckError(fmt.Sprintf("ошибка при инициализации репозитория %v", repoPath), &err)
 		return // выходим, чтобы не инициализировать подключение к БД
 	// on|off режим регламента
-	case "reglament":
+	case "regl", "reglament":
 		var mode string
 		cmdRegl := newFlagSet("reglament")
 		if len(cmdRegl.Args()) != 0 {
@@ -77,9 +77,10 @@ func Run() {
 	DOPOPULATE:
 		fallthrough
 	// выгрузка данных индексации из БД в Index.json[gz]
-	case "populate":
-		fmt.Println("выгрузка данных в индекс файл")
+	case "pop", "populate":
+		fmt.Print("Выгрузка данных в индекс файл: ")
 		proc.Populate(repoPtr)
+		fmt.Println("OK")
 	// активация/блокировка пакетов в репозитории
 	case "enable", "disable":
 		cmdSetStatus := newFlagSet("setstatus")
