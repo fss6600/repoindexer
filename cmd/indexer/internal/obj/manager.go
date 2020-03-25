@@ -126,16 +126,17 @@ func (r *Repo) Clean() (err error) {
 }
 
 // PackageID возвращает ID пакета
-func (r *Repo) PackageID(pack string) (id int64, err error) {
-	err = r.db.QueryRow("SELECT id FROM packages WHERE Name=?;", pack).Scan(&id)
-	if err == sql.ErrNoRows {
-		res, err := r.db.Exec("INSERT INTO packages ('Name', 'hash') VALUES (?, 0);", pack)
+func (r *Repo) PackageID(pack string) (int64, error) {
+	var id int64
+	if err := r.db.QueryRow("SELECT id FROM packages WHERE name=?;", pack).Scan(&id); err == sql.ErrNoRows {
+		// пакета нет в БД - добавляем
+		res, err := r.db.Exec("INSERT INTO packages ('name', 'hash') VALUES (?, 0);", pack)
 		if err != nil {
 			return 0, fmt.Errorf("create pack [ %v ] record in db: %v", pack, err)
 		}
 		id, _ = res.LastInsertId()
 	}
-	return
+	return id, nil
 }
 
 // Alias возвращает псевдоним пакета при наличии
@@ -521,7 +522,7 @@ func (r *Repo) RemovePack(pack string) error {
 	if c, _ := res.RowsAffected(); c == 0 {
 		return fmt.Errorf("должна быть удалена 1 запись: 0")
 	}
-	fmt.Printf("заблокирован: [ %v ]", pack)
+	fmt.Printf("[ %v ] удален\n", pack)
 	return nil
 }
 
@@ -609,12 +610,12 @@ func (r *Repo) Status() (*RepoStData, error) {
 	data := new(RepoStData)
 	// количество активных пакетов
 	if err := r.db.QueryRow("SELECT COUNT() FROM packages;").Scan(&data.IndexedCnt); err != nil {
-		return nil, fmt.Errorf("manager::Status: %v", err)
+		return nil, fmt.Errorf("manager::Status::Active: %v", err)
 	}
 
 	// количество заблокированных
 	if err := r.db.QueryRow("SELECT COUNT() FROM excludes;").Scan(&data.BlockedCnt); err != nil {
-		return nil, fmt.Errorf("manager::Status: %v", err)
+		return nil, fmt.Errorf("manager::Status::Blocked: %v", err)
 	}
 
 	// количество пакетов в репозитории
@@ -627,26 +628,32 @@ func (r *Repo) Status() (*RepoStData, error) {
 	// данные БД файла
 	fInfo, err := os.Stat(dbPath(r.Path()))
 	if err != nil {
-		return nil, fmt.Errorf("manager::Status: %v", err)
+		data.DBSize = -1
+		data.DBMDate = time.Time{}
+	} else {
+		data.DBSize = fInfo.Size()
+		data.DBMDate = fInfo.ModTime()
 	}
-	data.DBSize = fInfo.Size()
-	data.DBMDate = fInfo.ModTime()
 
 	// данные индекс файла
 	fInfo, err = os.Stat(filepath.Join(r.Path(), Indexgz))
 	if err != nil {
-		return nil, fmt.Errorf("manager::Status: %v", err)
+		data.IndexSize = -1
+		data.IndexMDate = time.Time{}
+	} else {
+		data.IndexSize = fInfo.Size()
+		data.IndexMDate = fInfo.ModTime()
 	}
-	data.IndexSize = fInfo.Size()
-	data.IndexMDate = fInfo.ModTime()
 
 	// данные индекс-хэш файла
 	fInfo, err = os.Stat(filepath.Join(r.Path(), Indexgz+".sha1"))
 	if err != nil {
-		return nil, fmt.Errorf("manager::Status: %v", err)
+		data.HashSize = -1
+		data.HashMDate = time.Time{}
+	} else {
+		data.HashSize = fInfo.Size()
+		data.HashMDate = fInfo.ModTime()
 	}
-	data.HashSize = fInfo.Size()
-	data.HashMDate = fInfo.ModTime()
 
 	return data, nil
 }

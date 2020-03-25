@@ -18,9 +18,9 @@ func SetReglamentMode(repoPath, mode string) {
 		reglOnMessage  string = "режим регламента активирован [on]"
 		reglOffMessage string = "режим регламента деактивирован [off]"
 	)
-	fRegl := filepath.Join(repoPath, fnReglament)
 	// проверка на наличие файла-флага, определение режима реглавмета
-	modeOn := reglIsSet(fRegl)
+	fRegl := filepath.Join(repoPath, fnReglament)
+	modeOn := ReglIsSet(repoPath)
 
 	switch mode {
 	// вывод режима регламента
@@ -55,13 +55,13 @@ func SetReglamentMode(repoPath, mode string) {
 	}
 }
 
-func reglIsSet(reglf string) bool {
+func ReglIsSet(repo string) bool {
+	reglf := filepath.Join(repo, fnReglament)
 	return utils.FileExists(reglf)
 }
 
 func CheckRegl(repoPath string) {
-	fRegl := filepath.Join(repoPath, fnReglament)
-	if !reglIsSet(fRegl) {
+	if !ReglIsSet(repoPath) {
 		panic("не установлен режим регламента!")
 	}
 }

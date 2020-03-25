@@ -31,6 +31,7 @@ func Index(r *obj.Repo, packs []string) {
 		fmt.Println("[", pack, "]")
 		processPackIndex(r, pack)
 	}
+	fmt.Println()
 	err := r.CleanPacks()
 	utils.CheckError(fmt.Sprintf("%v:cleanpacks:", tmplErrMsg), &err)
 }
@@ -72,7 +73,7 @@ func processPackIndex(r *obj.Repo, pack string) {
 			fsPath = fsList[fsInd]
 			err := r.AddFile(packID, pack, fsPath)
 			utils.CheckError(fmt.Sprintf("%v", tmplErrMsg), &err)
-			fmt.Println("+", fsPath)
+			fmt.Println("  +", fsPath)
 			//next path in FS list
 			fsInd++
 			if !changed {
@@ -85,7 +86,7 @@ func processPackIndex(r *obj.Repo, pack string) {
 			dbData = dbList[dbInd]
 			err := r.RemoveFile(dbData.Id)
 			utils.CheckError(fmt.Sprintf("%v:error compare files", tmplErrMsg), &err)
-			fmt.Println("-", dbData.Path)
+			fmt.Println("  -", dbData.Path)
 			// next file obj in db list
 			dbInd++
 			continue
@@ -100,7 +101,7 @@ func processPackIndex(r *obj.Repo, pack string) {
 			res, err := r.ChangedFile(pack, fsPath, dbData)
 			utils.CheckError(fmt.Sprintf("%v:error compare files", tmplErrMsg), &err)
 			if res {
-				fmt.Println(".", dbData.Path)
+				fmt.Println("  .", dbData.Path)
 				if !changed {
 					changed = true
 				}
@@ -112,7 +113,7 @@ func processPackIndex(r *obj.Repo, pack string) {
 			// добавляем запись о файле в БД
 			err := r.AddFile(packID, pack, fsPath)
 			utils.CheckError(fmt.Sprintf("%v", tmplErrMsg), &err)
-			fmt.Println("+", fsPath)
+			fmt.Println("  +", fsPath)
 			if !changed {
 				changed = true
 			}
@@ -122,7 +123,7 @@ func processPackIndex(r *obj.Repo, pack string) {
 		} else if fsPath > dbData.Path {
 			err := r.RemoveFile(dbData.Id)
 			utils.CheckError(fmt.Sprintf("%v", tmplErrMsg), &err)
-			fmt.Println("-", dbData.Path)
+			fmt.Println("  -", dbData.Path)
 			if !changed {
 				changed = true
 			}
