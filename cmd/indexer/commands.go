@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bufio"
 	"flag"
 	"fmt"
+	"os"
 
 	"github.com/pmshoot/repoindexer/cmd/indexer/internal/obj"
 	"github.com/pmshoot/repoindexer/cmd/indexer/internal/proc"
@@ -87,7 +89,11 @@ func Run() {
 		// список пакетов из командной строки
 		packetsList := cmdSetStatus.Args()
 		if len(packetsList) == 0 {
-			panic("укажите по крайней мере один пакет")
+			// список пакетов из stdin
+			packetsList = readFromStdin()
+			if len(packetsList) == 0 {
+				panic("укажите по крайней мере один пакет")
+			}
 		}
 		var status proc.PackStatus
 		if cmd == "enable" {
@@ -102,11 +108,17 @@ func Run() {
 		var aliases []string
 		cmdAlias := newFlagSet("alias")
 		if len(cmdAlias.Args()) == 0 {
-			cmd = ""
+			cmd = "show"
 			aliases = nil
 		} else {
 			cmd = cmdAlias.Args()[0]
 			aliases = cmdAlias.Args()[1:]
+			if len(aliases) == 0 {
+				// from stdin
+				aliases = readFromStdin()
+			} else if len(aliases) == 0 {
+				panic("укажите по крайней мере 1 пару ПАКЕТ=ПСЕВДОНИМ")
+			}
 		}
 		proc.Alias(repoPtr, cmd, aliases)
 	// вывод перечня и статус пакетов в репозитории
@@ -148,6 +160,16 @@ func Run() {
 	default:
 		panic("команда не опознана")
 	}
+}
+
+// todo: добавить таймер ожидания на 3-5 сек с аварийным выходом
+func readFromStdin() []string {
+	lst := make([]string, 0)
+	scanner := bufio.NewScanner(os.Stdin)
+	for scanner.Scan() {
+		lst = append(lst, scanner.Text())
+	}
+	return lst
 }
 
 func newFlagSet(name string) *flag.FlagSet {

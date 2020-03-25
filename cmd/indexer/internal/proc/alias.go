@@ -11,15 +11,10 @@ func Alias(r *obj.Repo, cmd string, aliases []string) {
 	const tmplErrMsg = "error::alias:"
 	switch cmd {
 	case "set":
-		// set aliases
-		if len(aliases) == 0 {
-			panic("укажите по крайней мере 1 пару 'ПСЕВДОНИМ'='ПАКЕТ'")
-		}
 		for _, alias := range aliases {
 			alias := strings.Split(alias, "=")
 			if len(alias) != 2 {
-				panic(fmt.Sprintf("неверно задан псевдоним - (%v)\n\n\t"+
-					"формат: alias set 'ПСЕВДОНИМ'='ПАКЕТ'", alias))
+				throw(alias[0])
 			}
 			if err := r.SetAlias(alias); err != nil {
 				if er, ok := err.(obj.ErrAlias); ok {
@@ -28,15 +23,19 @@ func Alias(r *obj.Repo, cmd string, aliases []string) {
 					panic(fmt.Errorf("%v:%v:%v", tmplErrMsg, "set", err))
 				}
 			}
-			fmt.Printf("установлен псевдоним: [ %v ]=[ %v ]\n", alias[0], alias[1])
+			fmt.Printf("установлен псевдоним: [ %v ]=( %v )\n", alias[0], alias[1])
 		}
 		fmt.Println("\n\tвыгрузите данные командой 'populate'")
 	case "del":
-		// del aliases
-		if len(aliases) == 0 {
-			panic("укажите по крайней мере 1 псевдоним")
-		}
 		for _, alias := range aliases {
+			als := strings.Split(alias, "=")
+			if l := len(als); l == 1 {
+				alias = als[0]
+			} else if l == 2 {
+				alias = als[1]
+			} else {
+				throw(alias)
+			}
 			if err := r.DelAlias(alias); err != nil {
 				if er, ok := err.(obj.ErrAlias); ok {
 					panic(fmt.Sprintf("%v\n", er))
@@ -54,10 +53,15 @@ func Alias(r *obj.Repo, cmd string, aliases []string) {
 			fmt.Println("список псевдонимов пуст")
 		} else {
 			for _, aliasPair := range aliases {
-				fmt.Printf("[ %v ]=[ %v ]\n", aliasPair[0], aliasPair[1])
+				fmt.Printf("%v=%v\n", aliasPair[0], aliasPair[1])
 			}
 		}
 	default:
 		panic(fmt.Sprintf("неверная соманда '%v'. укажите одну из [ 'set' | 'del' | 'show' ]\n", cmd))
 	}
+}
+
+func throw(alias string) {
+	panic(fmt.Sprintf("неверно задан псевдоним - (%v)\n\n\t"+
+		"формат: alias set ПАКЕТ=ПСЕВДОНИМ", alias))
 }

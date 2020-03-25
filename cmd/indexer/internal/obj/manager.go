@@ -154,7 +154,7 @@ func (r *Repo) Aliases() [][]string {
 	for rows.Next() {
 		var aliasPair []string
 		_ = rows.Scan(&alias, &name)
-		aliasPair = append(aliasPair, alias, name)
+		aliasPair = append(aliasPair, name, alias)
 		aliases = append(aliases, aliasPair)
 	}
 	return aliases
@@ -163,14 +163,14 @@ func (r *Repo) Aliases() [][]string {
 // SetAlias устанавливает псевдоним для пакета при отсутствии уже установленного псевдонима
 // и при наличии актуального пакета
 func (r *Repo) SetAlias(alias []string) error {
-	if !r.PackIsActive(alias[1]) {
-		return ErrAlias(fmt.Errorf("пакет [ %v ] не найден или заблокирован\n", alias[1]))
+	if !r.PackIsActive(alias[0]) {
+		return ErrAlias(fmt.Errorf("пакет [ %v ] не найден или заблокирован\n", alias[0]))
 	}
-	if res, err := r.db.Exec("INSERT INTO aliases (alias,name) VALUES (?, ?);", alias[0], alias[1]); err != nil {
+	if res, err := r.db.Exec("INSERT INTO aliases (name, alias) VALUES (?, ?);", alias[0], alias[1]); err != nil {
 		switch err.(type) {
 		case sqlite3.Error:
 			if err.(sqlite3.Error).Code == sqlite3.ErrConstraint {
-				return ErrAlias(fmt.Errorf("псевдоним [ %v ] или псевдоним для пакета [ %v ] уже заданы", alias[0], alias[1]))
+				return ErrAlias(fmt.Errorf("псевдоним [ %v ] или псевдоним для пакета [ %v ] уже заданы", alias[1], alias[0]))
 			}
 		default:
 			return fmt.Errorf(":manager: %v", err)
@@ -498,6 +498,7 @@ func (r *Repo) DisablePack(pack string) error {
 	if c, _ := res.RowsAffected(); c != 1 {
 		return fmt.Errorf(":DisablePack:[ %v ]:добавлено %d, должно 1", pack, c)
 	}
+	fmt.Printf("заблокирован: [ %s ]\n", pack)
 	return nil
 }
 
@@ -510,6 +511,7 @@ func (r *Repo) EnablePack(pack string) error {
 	if c, _ := res.RowsAffected(); c != 1 {
 		return fmt.Errorf(":EnablePack:[ %v ]:удалено %d, должно 1", pack, c)
 	}
+	fmt.Printf("активирован: [ %s ]\n", pack)
 	return nil
 }
 
@@ -522,7 +524,7 @@ func (r *Repo) RemovePack(pack string) error {
 	if c, _ := res.RowsAffected(); c == 0 {
 		return fmt.Errorf("должна быть удалена 1 запись: 0")
 	}
-	fmt.Printf("[ %v ] удален\n", pack)
+	fmt.Printf("удален: [ %s ]\n", pack)
 	return nil
 }
 
