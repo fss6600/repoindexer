@@ -12,6 +12,8 @@ import (
 var repoPath string
 var flagPopIndex, flagDebug bool
 
+const tmplErrMsg = "main:"
+
 func init() {
 	// обработка флагов и переменных
 	flag.StringVar(&repoPath, "r", "", "repopath: полный путь к репозиторию")
@@ -19,10 +21,8 @@ func init() {
 	flag.BoolVar(&flagDebug, "d", false, "debug: режим отладки")
 	flag.Parse()
 }
-
 func Run() {
 	// отложенная обработка сообщений об ошибках
-	const tmplErrMsg = "error::main:"
 	// проверка на наличие пути к репозиторию
 	if repoPath == "" {
 		panic("не указан путь к репозиторию")
@@ -45,9 +45,7 @@ func Run() {
 	// on|off режим регламента
 	case "reglament":
 		var mode string
-		cmdRegl := flag.NewFlagSet("reglament", flag.ErrorHandling(1))
-		err := cmdRegl.Parse(flag.Args()[1:])
-		utils.CheckError(tmplErrMsg, &err)
+		cmdRegl := newFlagSet("reglament")
 		if len(cmdRegl.Args()) != 0 {
 			mode = cmdRegl.Arg(0)
 		}
@@ -69,9 +67,7 @@ func Run() {
 	switch cmd {
 	//индексация файлов репозитория с записью в БД
 	case "index":
-		cmdIndex := flag.NewFlagSet("index", flag.ErrorHandling(1))
-		err := cmdIndex.Parse(flag.Args()[1:])
-		utils.CheckError(tmplErrMsg, &err)
+		cmdIndex := newFlagSet("index")
 		proc.Index(repoPtr, cmdIndex.Args())
 		// flag p: при указании - выгрузка в индекс-файл
 		if flagPopIndex {
@@ -86,9 +82,7 @@ func Run() {
 		proc.Populate(repoPtr)
 	// активация/блокировка пакетов в репозитории
 	case "enable", "disable":
-		cmdSetStatus := flag.NewFlagSet("setstatus", flag.ErrorHandling(1))
-		err := cmdSetStatus.Parse(flag.Args()[1:])
-		utils.CheckError(tmplErrMsg, &err)
+		cmdSetStatus := newFlagSet("setstatus")
 		// список пакетов из командной строки
 		packetsList := cmdSetStatus.Args()
 		if len(packetsList) == 0 {
@@ -105,9 +99,7 @@ func Run() {
 	case "alias":
 		var cmd string
 		var aliases []string
-		cmdAlias := flag.NewFlagSet("alias", flag.ErrorHandling(1))
-		err := cmdAlias.Parse(flag.Args()[1:])
-		utils.CheckError(tmplErrMsg, &err)
+		cmdAlias := newFlagSet("alias")
 		if len(cmdAlias.Args()) == 0 {
 			cmd = ""
 			aliases = nil
@@ -119,9 +111,7 @@ func Run() {
 	// вывод перечня и статус пакетов в репозитории
 	case "list":
 		var cmd string
-		cmdAlias := flag.NewFlagSet("list", flag.ErrorHandling(1))
-		err := cmdAlias.Parse(flag.Args()[1:])
-		utils.CheckError(tmplErrMsg, &err)
+		cmdAlias := newFlagSet("list")
 		if len(cmdAlias.Args()) == 0 {
 			cmd = "all"
 		} else {
@@ -144,9 +134,7 @@ func Run() {
 	// очистка БД от данных
 	case "cleardb":
 		var cmd string
-		cmdAlias := flag.NewFlagSet("cleardb", flag.ErrorHandling(1))
-		err := cmdAlias.Parse(flag.Args()[1:])
-		utils.CheckError(tmplErrMsg, &err)
+		cmdAlias := newFlagSet("cleardb")
 		if len(cmdAlias.Args()) == 0 {
 			cmd = ""
 		} else {
@@ -159,4 +147,11 @@ func Run() {
 	default:
 		panic("команда не опознана")
 	}
+}
+
+func newFlagSet(name string) *flag.FlagSet {
+	f := flag.NewFlagSet(name, flag.ErrorHandling(1))
+	err := f.Parse(flag.Args()[1:])
+	utils.CheckError(tmplErrMsg, &err)
+	return f
 }
