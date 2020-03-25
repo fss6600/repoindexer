@@ -12,13 +12,9 @@ import (
 func Index(r *obj.Repo, packs []string) {
 	const tmplErrMsg = "error::index:"
 	CheckRegl(r.Path())
-	if len(packs) == 0 {
-		packs = r.ActivePacks()
-	} else {
-		for _, pack := range packs {
-			if r.PackIsBlocked(pack) {
-				panic(fmt.Sprintf("пакет [ %v ] заблокирован", pack))
-			}
+	for _, pack := range packs {
+		if r.PackIsBlocked(pack) {
+			panic(fmt.Sprintf("пакет [ %v ] заблокирован", pack))
 		}
 	}
 	err = r.SetPrepare()

@@ -70,7 +70,13 @@ func Run() {
 	//индексация файлов репозитория с записью в БД
 	case "index":
 		cmdIndex := newFlagSet("index")
-		proc.Index(repoPtr, cmdIndex.Args())
+		packs := cmdIndex.Args() // из командной строки
+		if len(packs) == 0 {
+			packs = readFromStdin() // из stdin
+		} else if len(packs) == 0 {
+			packs = repoPtr.ActivePacks() // активные
+		}
+		proc.Index(repoPtr, packs)
 		// flag p: при указании - выгрузка в индекс-файл
 		if flagPopIndex {
 			goto DOPOPULATE

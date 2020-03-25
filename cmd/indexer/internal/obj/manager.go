@@ -524,7 +524,7 @@ func (r *Repo) RemovePack(pack string) error {
 	if c, _ := res.RowsAffected(); c == 0 {
 		return fmt.Errorf("должна быть удалена 1 запись: 0")
 	}
-	fmt.Printf("удален: [ %s ]\n", pack)
+	fmt.Printf("  - [ %s ]\n", pack)
 	return nil
 }
 
