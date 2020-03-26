@@ -2,16 +2,16 @@ package proc
 
 import (
 	"encoding/json"
+	"fmt"
 	"path"
 
 	"github.com/pmshoot/repoindexer/cmd/indexer/internal/obj"
 	"github.com/pmshoot/repoindexer/cmd/indexer/internal/utils"
 )
 
-var err error
-
 func Populate(r *obj.Repo) {
-	const tmplErrMsg = "error::populate:"
+	const errMsg = errMsg + ":populate:"
+	fmt.Print("Выгрузка данных в индекс файл: ")
 	CheckRegl(r.Path())
 	type packages map[string]obj.HashedPackData
 	packCh := make(chan obj.HashedPackData)
@@ -19,8 +19,8 @@ func Populate(r *obj.Repo) {
 
 	// список пакетов в из БД
 	go func() {
-		err := r.HashedPackages(packCh)
-		utils.CheckError(tmplErrMsg, &err)
+		err = r.HashedPackages(packCh)
+		utils.CheckError(errMsg, &err)
 	}() //todo добавить канал ошибок,
 
 	for packData := range packCh { //todo прогон серез select c  обработкой ошибок
@@ -34,13 +34,14 @@ func Populate(r *obj.Repo) {
 
 	// выгрузка данныз из БД в json файл
 	err = utils.WriteGzip(jsonData, fp)
-	utils.CheckError(tmplErrMsg, &err)
+	utils.CheckError(errMsg, &err)
 
 	// подсчет hash суммы индекс-файла
 	hash, err := utils.HashSumFile(fp)
-	utils.CheckError(tmplErrMsg, &err)
+	utils.CheckError(errMsg, &err)
 
 	// запись хэш-суммы индекс-файла
 	err = utils.WriteGzipHash(fp, hash)
-	utils.CheckError(tmplErrMsg, &err)
+	utils.CheckError(errMsg, &err)
+	fmt.Println("OK")
 }

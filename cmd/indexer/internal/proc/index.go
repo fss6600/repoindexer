@@ -10,7 +10,8 @@ import (
 
 // Index обработка и индексация пакетов в репозитории
 func Index(r *obj.Repo, packs []string) {
-	const tmplErrMsg = "error::index:"
+	const errMsg = errMsg + ":index:"
+	var changed bool
 	CheckRegl(r.Path())
 	for _, pack := range packs {
 		if r.PackIsBlocked(pack) {
@@ -18,23 +19,28 @@ func Index(r *obj.Repo, packs []string) {
 		}
 	}
 	err = r.SetPrepare()
-	utils.CheckError(fmt.Sprintf("%v:setprepare:", tmplErrMsg), &err)
+	utils.CheckError(fmt.Sprintf("%v:setprepare:", errMsg), &err)
 
 	for _, pack := range packs {
 		if pack == "" {
 			panic("задано пустое имя пакета")
 		}
 		fmt.Println("[", pack, "]")
-		processPackIndex(r, pack)
+		changed = processPackIndex(r, pack)
 	}
 	fmt.Println()
-	err := r.CleanPacks()
-	utils.CheckError(fmt.Sprintf("%v:cleanpacks:", tmplErrMsg), &err)
+	err = r.CleanPacks()
+	utils.CheckError(fmt.Sprintf("%v:cleanpacks:", errMsg), &err)
+	if changed {
+		fmt.Println(doPopMsg)
+	} else {
+		fmt.Println(noChangeMsg)
+	}
 }
 
 // processPackIndex обрабатывает (индексирует) файлы в указанном пакете
-func processPackIndex(r *obj.Repo, pack string) {
-	const tmplErrMsg = "error::index::processPackIndex:"
+func processPackIndex(r *obj.Repo, pack string) bool {
+	const errMsg = errMsg + ":index::processPackIndex:"
 	var (
 		packID       int64          // ID пакета
 		fsList       []string       // список файлов пакета в репозитории
@@ -46,11 +52,11 @@ func processPackIndex(r *obj.Repo, pack string) {
 		changed      bool         // package has changes
 	)
 	fsList, err = r.FilesPackRepo(pack)
-	utils.CheckError(fmt.Sprintf("%v:%v:", tmplErrMsg, "FilesPackRepo"), &err)
+	utils.CheckError(fmt.Sprintf("%v:%v:", errMsg, "FilesPackRepo"), &err)
 	packID, err = r.PackageID(pack)
-	utils.CheckError(fmt.Sprintf("%v:%v:", tmplErrMsg, "PackageID"), &err)
+	utils.CheckError(fmt.Sprintf("%v:%v:", errMsg, "PackageID"), &err)
 	dbList, err = r.FilesPackDB(packID)
-	utils.CheckError(fmt.Sprintf("%v:%v:", tmplErrMsg, "FilesPackDB"), &err)
+	utils.CheckError(fmt.Sprintf("%v:%v:", errMsg, "FilesPackDB"), &err)
 
 	fsMaxInd := len(fsList) - 1
 	dbMaxInd := len(dbList) - 1
@@ -67,8 +73,8 @@ func processPackIndex(r *obj.Repo, pack string) {
 		if dbInd > dbMaxInd {
 			// добавляем запись о файле в БД
 			fsPath = fsList[fsInd]
-			err := r.AddFile(packID, pack, fsPath)
-			utils.CheckError(fmt.Sprintf("%v", tmplErrMsg), &err)
+			err = r.AddFile(packID, pack, fsPath)
+			utils.CheckError(fmt.Sprintf("%v", errMsg), &err)
 			fmt.Println("  +", fsPath)
 			//next path in FS list
 			fsInd++
@@ -80,8 +86,8 @@ func processPackIndex(r *obj.Repo, pack string) {
 		// удаляем запись о файле из БД
 		if fsInd > fsMaxInd { // not in FS
 			dbData = dbList[dbInd]
-			err := r.RemoveFile(dbData.Id)
-			utils.CheckError(fmt.Sprintf("%v:error compare files", tmplErrMsg), &err)
+			err = r.RemoveFile(dbData.Id)
+			utils.CheckError(fmt.Sprintf("%v:error compare files", errMsg), &err)
 			fmt.Println("  -", dbData.Path)
 			// next file obj in db list
 			dbInd++
@@ -95,7 +101,7 @@ func processPackIndex(r *obj.Repo, pack string) {
 		// in FS, in db
 		if fsPath == dbData.Path {
 			res, err := r.ChangedFile(pack, fsPath, dbData)
-			utils.CheckError(fmt.Sprintf("%v:error compare files", tmplErrMsg), &err)
+			utils.CheckError(fmt.Sprintf("%v:error compare files", errMsg), &err)
 			if res {
 				fmt.Println("  .", dbData.Path)
 				if !changed {
@@ -107,8 +113,8 @@ func processPackIndex(r *obj.Repo, pack string) {
 			// in FS, not in db: add file to BD
 		} else if fsPath < dbData.Path {
 			// добавляем запись о файле в БД
-			err := r.AddFile(packID, pack, fsPath)
-			utils.CheckError(fmt.Sprintf("%v", tmplErrMsg), &err)
+			err = r.AddFile(packID, pack, fsPath)
+			utils.CheckError(fmt.Sprintf("%v", errMsg), &err)
 			fmt.Println("  +", fsPath)
 			if !changed {
 				changed = true
@@ -117,22 +123,23 @@ func processPackIndex(r *obj.Repo, pack string) {
 			// удаляем запись о файле из БД
 			// not in FS, in db
 		} else if fsPath > dbData.Path {
-			err := r.RemoveFile(dbData.Id)
-			utils.CheckError(fmt.Sprintf("%v", tmplErrMsg), &err)
+			err = r.RemoveFile(dbData.Id)
+			utils.CheckError(fmt.Sprintf("%v", errMsg), &err)
 			fmt.Println("  -", dbData.Path)
 			if !changed {
 				changed = true
 			}
 			dbInd++
 		} else {
-			panic(fmt.Sprintf("%v something goes wrong", tmplErrMsg))
+			panic(fmt.Sprintf("%v something goes wrong", errMsg))
 		}
 		continue
 	}
 
 	// пересчитываем контрольную сумму пакета при наличии изменений файлов
 	if changed {
-		err := r.HashSumPack(packID)
-		utils.CheckError(fmt.Sprintf("%v", tmplErrMsg), &err)
+		err = r.HashSumPack(packID)
+		utils.CheckError(fmt.Sprintf("%v", errMsg), &err)
 	}
+	return changed
 }

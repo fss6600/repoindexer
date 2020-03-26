@@ -11,18 +11,17 @@ func List(r *obj.Repo, cmd string) {
 	switch cmd {
 	case "all":
 		ch := make(chan *obj.ListData)
-		line := fmt.Sprintln("[%4v] %v")
-		fmt.Printf(line, "СТАТ", "ПАКЕТ (ПСЕВДОНИМ)")
+		fmt.Printf(tmplListOut, "СТАТ", "ПАКЕТ (ПСЕВДОНИМ)")
 		fmt.Println("------", "-----------------")
 		go r.List(ch)
 		for data := range ch {
 			switch data.Status {
 			case 0:
-				fmt.Printf(line, "блок", data.Name)
+				fmt.Printf(tmplListOut, catBlock, data.Name)
 			case 1:
-				fmt.Printf(line, "", data.Name)
+				fmt.Printf(tmplListOut, catActive, data.Name)
 			case -1:
-				fmt.Printf(line, "!инд", data.Name)
+				fmt.Printf(tmplListOut, catNoIndexed, data.Name)
 			}
 		}
 	case "indexed":

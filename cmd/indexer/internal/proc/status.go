@@ -8,14 +8,9 @@ import (
 )
 
 func RepoStatus(r *obj.Repo) {
-	/*
-		todo - сообщения об отсутствии служебных файлов репозитория
-		todo - формат даты файлов
-	*/
-	const tmplErrMsg = "error::status:"
-	const timeLayout = "2006-01-02 15:04:05"
+	const errRStatMsg = errMsg + ":status:"
 	rData, err := r.Status()
-	utils.CheckError(tmplErrMsg, &err)
+	utils.CheckError(errRStatMsg, &err)
 
 	var reglStatus string
 	switch ReglIsSet(r.Path()) {
@@ -55,10 +50,12 @@ func RepoStatus(r *obj.Repo) {
 	}
 
 	if unIndexed > 0 || unIndexed < 0 {
-		fmt.Println("\n\tтребуется индексация репозитория")
+		fmt.Println(doIndexMsg)
 	} else if rData.IndexMDate.IsZero() {
-		fmt.Println("\n\tиндекс-файл отсутствует - произведите выгрузку данных командой 'populate'")
+		fmt.Print("\n\tИндекс-файл отсутствует")
+		fmt.Println(doPopMsg)
 	} else if rData.DBMDate.UnixNano() > rData.IndexMDate.UnixNano() {
-		fmt.Println("\n\tиндекс-файл старше файла БД - произведите выгрузку данных командой 'populate'")
+		fmt.Print("\n\tИндекс-файл старше файла БД")
+		fmt.Println(doPopMsg)
 	}
 }

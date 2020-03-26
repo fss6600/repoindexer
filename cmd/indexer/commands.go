@@ -88,9 +88,7 @@ func Run() {
 		fallthrough
 	// выгрузка данных индексации из БД в Index.json[gz]
 	case "pop", "populate":
-		fmt.Print("Выгрузка данных в индекс файл: ")
 		proc.Populate(repoPtr)
-		fmt.Println("OK")
 	// активация/блокировка пакетов в репозитории
 	case "enable", "disable":
 		cmdSetStatus := newFlagSet("setstatus")
@@ -139,7 +137,7 @@ func Run() {
 			cmd = cmdAlias.Args()[0]
 		}
 		proc.List(repoPtr, cmd)
-	// вывод версии программы, БД
+		// вывод версии программы, БД
 	case "version":
 		vMaj, vMin, err := repoPtr.VersionDB()
 		utils.CheckError(tmplErrMsg, &err)
@@ -148,7 +146,7 @@ func Run() {
 		fmt.Printf("Версия БД репозитория\t: %d.%d\n", vMaj, vMin)
 	// упаковка и переиндексация данных в БД
 	case "clean":
-		fmt.Print("упаковка БД: ")
+		fmt.Print("Упаковка БД: ")
 		err = repoPtr.Clean()
 		utils.CheckError(tmplErrMsg, &err)
 		fmt.Println("OK")

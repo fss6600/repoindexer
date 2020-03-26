@@ -114,6 +114,7 @@ func (r *Repo) Close() error {
 }
 
 func (r *Repo) Clean() (err error) {
+
 	if r.db != nil {
 		if _, err = r.db.Exec("VACUUM"); err != nil {
 			return fmt.Errorf("ошибка очистки БД: ", err)
@@ -733,7 +734,7 @@ func (r *Repo) VersionDB() (int64, int64, error) {
 func InitDB(path string) error {
 	fp := dbPath(path)
 	if utils.FileExists(fp) {
-		fmt.Println("файл БД существует")
+		fmt.Println("репозиторий уже инициализирован. Для повторной инициализации удалите файл БД")
 		return nil
 	}
 	db, err := newConnection(fp)
@@ -750,7 +751,7 @@ func InitDB(path string) error {
 		1, DBVersionMajor, DBVersionMinor); err != nil {
 		return err
 	}
-	fmt.Println("репозиторий проинициализирован")
+	fmt.Println("репозиторий инициализирован")
 	return nil
 }
 

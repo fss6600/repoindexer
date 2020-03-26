@@ -9,15 +9,9 @@ import (
 
 type PackStatus int
 
-const (
-	PackStateDisable PackStatus = iota // статус пакета - активировать
-	PackStateEnable                    // статус пакета - заблокировать
-)
-
 // SetPackStatus активирует или блокирует пакет для индексации
 func SetPackStatus(r *obj.Repo, status PackStatus, packs []string) {
-	const tmplErrMsg = "error::packages::SetPackStatus:"
-	var err error
+	const errMsg = errMsg + ":packages::SetPackStatus:"
 	done := false
 
 	switch status {
@@ -32,8 +26,8 @@ func SetPackStatus(r *obj.Repo, status PackStatus, packs []string) {
 			done = true
 		}
 		if done {
-			fmt.Println("\n\tпроиндексируйте пакеты командой 'index [...pacnames]'")
-			fmt.Println("\tвыгрузите данные в индекс-файл командой 'populate'")
+			fmt.Print(doIndexMsg)
+			fmt.Println(doPopMsg)
 		}
 	// блокирование пакетов
 	case PackStateDisable:
@@ -51,10 +45,10 @@ func SetPackStatus(r *obj.Repo, status PackStatus, packs []string) {
 		}
 		// очистка БД от данных заблокированных пакетов
 		if done {
-			err := r.CleanPacks()
-			utils.CheckError(fmt.Sprintf("%v", tmplErrMsg), &err)
-			fmt.Println("\n\tвыгрузите данные в индекс-файл командой 'populate'")
+			err = r.CleanPacks()
+			utils.CheckError(fmt.Sprintf("%v", errMsg), &err)
+			fmt.Println(doPopMsg)
 		}
 	}
-	utils.CheckError(fmt.Sprintf("%v", tmplErrMsg), &err)
+	utils.CheckError(fmt.Sprintf("%v", errMsg), &err)
 }

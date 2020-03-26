@@ -9,15 +9,9 @@ import (
 	"github.com/pmshoot/repoindexer/cmd/indexer/internal/utils"
 )
 
-const fnReglament string = "__REGLAMENT__"
-
 // SetReglamentMode активирует/деактивирует режим регламента репозитория
 func SetReglamentMode(repoPath, mode string) {
-	const tmplErrMsg = "error::packages::SetReglamentMode:"
-	const (
-		reglOnMessage  string = "режим регламента активирован [on]"
-		reglOffMessage string = "режим регламента деактивирован [off]"
-	)
+	const errMsg = errMsg + ":packages::SetReglamentMode:"
 	// проверка на наличие файла-флага, определение режима реглавмета
 	fRegl := filepath.Join(repoPath, fnReglament)
 	modeOn := ReglIsSet(repoPath)
@@ -38,16 +32,16 @@ func SetReglamentMode(repoPath, mode string) {
 			fmt.Println(reglOnMessage, string(owner))
 			// активация регламента с записью информации кто активировал
 		} else {
-			err := ioutil.WriteFile(fRegl, utils.TaskOwnerInfo(), 0644)
-			utils.CheckError(fmt.Sprintf("%v", tmplErrMsg), &err)
+			err = ioutil.WriteFile(fRegl, utils.TaskOwnerInfo(), 0644)
+			utils.CheckError(fmt.Sprintf("%v", errMsg), &err)
 			fmt.Println(reglOnMessage)
 		}
 	// деактивация режима реглавмента
 	case "off":
 		// регламент активирован - удаляем файл
 		if modeOn {
-			err := os.Remove(fRegl)
-			utils.CheckError(fmt.Sprintf("%v", tmplErrMsg), &err)
+			err = os.Remove(fRegl)
+			utils.CheckError(fmt.Sprintf("%v", errMsg), &err)
 		}
 		fmt.Println(reglOffMessage)
 	default:

@@ -8,7 +8,8 @@ import (
 )
 
 func Alias(r *obj.Repo, cmd string, aliases []string) {
-	const tmplErrMsg = "error::alias:"
+	const errAliasMsg = errMsg + ":Alias:"
+
 	switch cmd {
 	case "set":
 		for _, alias := range aliases {
@@ -16,16 +17,16 @@ func Alias(r *obj.Repo, cmd string, aliases []string) {
 			if len(alias) != 2 {
 				throw(alias[0])
 			}
-			if err := r.SetAlias(alias); err != nil {
+			if err = r.SetAlias(alias); err != nil {
 				if er, ok := err.(obj.ErrAlias); ok {
 					panic(fmt.Sprintf("%v\n", er))
 				} else {
-					panic(fmt.Errorf("%v:%v:%v", tmplErrMsg, "set", err))
+					panic(fmt.Errorf("%v:%v:%v", errAliasMsg, "set", err))
 				}
 			}
-			fmt.Printf("установлен псевдоним: [ %v ]=( %v )\n", alias[0], alias[1])
+			fmt.Printf("Установлен псевдоним: [ %v ]=( %v )\n", alias[0], alias[1])
 		}
-		fmt.Println("\n\tвыгрузите данные командой 'populate'")
+		fmt.Println(doPopMsg)
 	case "del":
 		for _, alias := range aliases {
 			als := strings.Split(alias, "=")
@@ -36,21 +37,21 @@ func Alias(r *obj.Repo, cmd string, aliases []string) {
 			} else {
 				throw(alias)
 			}
-			if err := r.DelAlias(alias); err != nil {
+			if err = r.DelAlias(alias); err != nil {
 				if er, ok := err.(obj.ErrAlias); ok {
 					panic(fmt.Sprintf("%v\n", er))
 				} else {
-					panic(fmt.Errorf("%v:%v%v", tmplErrMsg, "del", err))
+					panic(fmt.Errorf("%v:%v%v", errAliasMsg, "del", err))
 				}
 			}
-			fmt.Printf("удален псевдоним: [ %v ]\n", alias)
+			fmt.Printf("Удален псевдоним: [ %v ]\n", alias)
 		}
-		fmt.Println("\n\tвыгрузите данные командой 'populate'")
+		fmt.Println(doPopMsg)
 	case "", "show":
 		// show alias info
 		aliases := r.Aliases()
 		if len(aliases) == 0 {
-			fmt.Println("список псевдонимов пуст")
+			fmt.Println("Список псевдонимов пуст")
 		} else {
 			for _, aliasPair := range aliases {
 				fmt.Printf("%v=%v\n", aliasPair[0], aliasPair[1])
