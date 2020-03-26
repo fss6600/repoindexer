@@ -74,7 +74,8 @@ func Run() {
 		packs := cmdIndex.Args() // из командной строки
 		if len(packs) == 0 {
 			packs = readFromStdin() // из stdin
-		} else if len(packs) == 0 {
+		}
+		if len(packs) == 0 {
 			packs = repoPtr.ActivePacks() // активные
 		}
 		proc.Index(repoPtr, packs)
@@ -189,8 +190,8 @@ func readFromStdin() []string {
 			} else {
 				return lst
 			}
-		case <-time.After(time.Second * 6):
-			panic("превышено время ожидания данных со стандартного ввода")
+		case <-time.After(time.Millisecond * 50):
+			return lst
 		}
 	}
 }
