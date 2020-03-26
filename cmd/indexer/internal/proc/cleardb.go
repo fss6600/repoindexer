@@ -8,12 +8,12 @@ import (
 )
 
 func ClearDB(r *obj.Repo, cmd string) {
-	const errMsg = errMsg + ":Cleardb:"
+	const errClrDBMsg = errMsg + ":Cleardb:"
 	switch cmd {
 	case "index", "all":
 		fmt.Print("Очистка данных индексации пакетов...")
 		err = r.DBCleanPackages()
-		utils.CheckError(fmt.Sprintf("\n%v:index:", errMsg), &err)
+		utils.CheckError(fmt.Sprintf("\n%v:index:", errClrDBMsg), &err)
 		fmt.Println("OK")
 		if cmd != "all" {
 			break
@@ -22,7 +22,7 @@ func ClearDB(r *obj.Repo, cmd string) {
 	case "alias":
 		fmt.Print("Очистка данных псевдонимов...")
 		err = r.DBCleanAliases()
-		utils.CheckError(fmt.Sprintf("\n%v:alias:", errMsg), &err)
+		utils.CheckError(fmt.Sprintf("\n%v:alias:", errClrDBMsg), &err)
 		fmt.Println("OK")
 		if cmd != "all" {
 			break
@@ -31,7 +31,7 @@ func ClearDB(r *obj.Repo, cmd string) {
 	case "status":
 		fmt.Print("Очистка данных блокировки...")
 		err = r.DBCleanStatus()
-		utils.CheckError(fmt.Sprintf("\n%v:status:", errMsg), &err)
+		utils.CheckError(fmt.Sprintf("\n%v:status:", errClrDBMsg), &err)
 		fmt.Println("OK")
 	default:
 		panic("укажите одну категорию из списка: index | alias | status | all")

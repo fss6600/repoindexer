@@ -11,7 +11,7 @@ import (
 
 // SetReglamentMode активирует/деактивирует режим регламента репозитория
 func SetReglamentMode(repoPath, mode string) {
-	const errMsg = errMsg + ":packages::SetReglamentMode:"
+	const errReglMsg = errMsg + ":packages::SetReglamentMode:"
 	// проверка на наличие файла-флага, определение режима реглавмета
 	fRegl := filepath.Join(repoPath, fnReglament)
 	modeOn := ReglIsSet(repoPath)
@@ -33,7 +33,7 @@ func SetReglamentMode(repoPath, mode string) {
 			// активация регламента с записью информации кто активировал
 		} else {
 			err = ioutil.WriteFile(fRegl, utils.TaskOwnerInfo(), 0644)
-			utils.CheckError(fmt.Sprintf("%v", errMsg), &err)
+			utils.CheckError(fmt.Sprintf("%v", errReglMsg), &err)
 			fmt.Println(reglOnMessage)
 		}
 	// деактивация режима реглавмента
@@ -41,7 +41,7 @@ func SetReglamentMode(repoPath, mode string) {
 		// регламент активирован - удаляем файл
 		if modeOn {
 			err = os.Remove(fRegl)
-			utils.CheckError(fmt.Sprintf("%v", errMsg), &err)
+			utils.CheckError(fmt.Sprintf("%v", errReglMsg), &err)
 		}
 		fmt.Println(reglOffMessage)
 	default:

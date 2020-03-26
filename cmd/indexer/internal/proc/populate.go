@@ -10,7 +10,7 @@ import (
 )
 
 func Populate(r *obj.Repo) {
-	const errMsg = errMsg + ":populate:"
+	const errPopMsg = errMsg + ":populate:"
 	fmt.Print("Выгрузка данных в индекс файл: ")
 	CheckRegl(r.Path())
 	type packages map[string]obj.HashedPackData
@@ -20,11 +20,15 @@ func Populate(r *obj.Repo) {
 	// список пакетов в из БД
 	go func() {
 		err = r.HashedPackages(packCh)
-		utils.CheckError(errMsg, &err)
+		utils.CheckError(errPopMsg, &err)
 	}() //todo добавить канал ошибок,
 
 	for packData := range packCh { //todo прогон серез select c  обработкой ошибок
 		packDataList[packData.Name] = packData // добавляем в map
+	}
+
+	if len(packDataList) == 0 {
+		panic("нет данных - требуется индексация репозитория")
 	}
 
 	var jsonData []byte
@@ -34,14 +38,14 @@ func Populate(r *obj.Repo) {
 
 	// выгрузка данныз из БД в json файл
 	err = utils.WriteGzip(jsonData, fp)
-	utils.CheckError(errMsg, &err)
+	utils.CheckError(errPopMsg, &err)
 
 	// подсчет hash суммы индекс-файла
 	hash, err := utils.HashSumFile(fp)
-	utils.CheckError(errMsg, &err)
+	utils.CheckError(errPopMsg, &err)
 
 	// запись хэш-суммы индекс-файла
 	err = utils.WriteGzipHash(fp, hash)
-	utils.CheckError(errMsg, &err)
+	utils.CheckError(errPopMsg, &err)
 	fmt.Println("OK")
 }

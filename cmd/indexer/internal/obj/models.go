@@ -1,5 +1,7 @@
 package obj
 
+// from scripts/sql/initdb.sql
+
 const initSQL = `
 -- Скрипт инициализации БД
 DROP TABLE IF EXISTS files;

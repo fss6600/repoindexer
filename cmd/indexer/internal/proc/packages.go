@@ -11,7 +11,7 @@ type PackStatus int
 
 // SetPackStatus активирует или блокирует пакет для индексации
 func SetPackStatus(r *obj.Repo, status PackStatus, packs []string) {
-	const errMsg = errMsg + ":packages::SetPackStatus:"
+	const errPackMsg = errMsg + ":packages::SetPackStatus:"
 	done := false
 
 	switch status {
@@ -46,9 +46,9 @@ func SetPackStatus(r *obj.Repo, status PackStatus, packs []string) {
 		// очистка БД от данных заблокированных пакетов
 		if done {
 			err = r.CleanPacks()
-			utils.CheckError(fmt.Sprintf("%v", errMsg), &err)
+			utils.CheckError(fmt.Sprintf("%v", errPackMsg), &err)
 			fmt.Println(doPopMsg)
 		}
 	}
-	utils.CheckError(fmt.Sprintf("%v", errMsg), &err)
+	utils.CheckError(fmt.Sprintf("%v", errPackMsg), &err)
 }

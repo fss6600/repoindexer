@@ -10,7 +10,7 @@ import (
 
 // Index обработка и индексация пакетов в репозитории
 func Index(r *obj.Repo, packs []string) {
-	const errMsg = errMsg + ":index:"
+	const errIndexMsg = errMsg + ":index:"
 	var changed bool
 	CheckRegl(r.Path())
 	for _, pack := range packs {
@@ -19,7 +19,7 @@ func Index(r *obj.Repo, packs []string) {
 		}
 	}
 	err = r.SetPrepare()
-	utils.CheckError(fmt.Sprintf("%v:setprepare:", errMsg), &err)
+	utils.CheckError(fmt.Sprintf("%v:setprepare:", errIndexMsg), &err)
 
 	for _, pack := range packs {
 		if pack == "" {
@@ -30,7 +30,7 @@ func Index(r *obj.Repo, packs []string) {
 	}
 	fmt.Println()
 	err = r.CleanPacks()
-	utils.CheckError(fmt.Sprintf("%v:cleanpacks:", errMsg), &err)
+	utils.CheckError(fmt.Sprintf("%v:cleanpacks:", errIndexMsg), &err)
 	if changed {
 		fmt.Println(doPopMsg)
 	} else {
@@ -40,7 +40,7 @@ func Index(r *obj.Repo, packs []string) {
 
 // processPackIndex обрабатывает (индексирует) файлы в указанном пакете
 func processPackIndex(r *obj.Repo, pack string) bool {
-	const errMsg = errMsg + ":index::processPackIndex:"
+	const errPackIndMsg = errMsg + ":index::processPackIndex:"
 	var (
 		packID       int64          // ID пакета
 		fsList       []string       // список файлов пакета в репозитории
@@ -52,11 +52,11 @@ func processPackIndex(r *obj.Repo, pack string) bool {
 		changed      bool         // package has changes
 	)
 	fsList, err = r.FilesPackRepo(pack)
-	utils.CheckError(fmt.Sprintf("%v:%v:", errMsg, "FilesPackRepo"), &err)
+	utils.CheckError("", &err)
 	packID, err = r.PackageID(pack)
-	utils.CheckError(fmt.Sprintf("%v:%v:", errMsg, "PackageID"), &err)
+	utils.CheckError(fmt.Sprintf("%v:%v:", errPackIndMsg, "PackageID"), &err)
 	dbList, err = r.FilesPackDB(packID)
-	utils.CheckError(fmt.Sprintf("%v:%v:", errMsg, "FilesPackDB"), &err)
+	utils.CheckError(fmt.Sprintf("%v:%v:", errPackIndMsg, "FilesPackDB"), &err)
 
 	fsMaxInd := len(fsList) - 1
 	dbMaxInd := len(dbList) - 1
@@ -74,7 +74,7 @@ func processPackIndex(r *obj.Repo, pack string) bool {
 			// добавляем запись о файле в БД
 			fsPath = fsList[fsInd]
 			err = r.AddFile(packID, pack, fsPath)
-			utils.CheckError(fmt.Sprintf("%v", errMsg), &err)
+			utils.CheckError(fmt.Sprintf("%v", errPackIndMsg), &err)
 			fmt.Println("  +", fsPath)
 			//next path in FS list
 			fsInd++
@@ -87,7 +87,7 @@ func processPackIndex(r *obj.Repo, pack string) bool {
 		if fsInd > fsMaxInd { // not in FS
 			dbData = dbList[dbInd]
 			err = r.RemoveFile(dbData.Id)
-			utils.CheckError(fmt.Sprintf("%v:error compare files", errMsg), &err)
+			utils.CheckError(fmt.Sprintf("%v:error compare files", errPackIndMsg), &err)
 			fmt.Println("  -", dbData.Path)
 			// next file obj in db list
 			dbInd++
@@ -101,7 +101,7 @@ func processPackIndex(r *obj.Repo, pack string) bool {
 		// in FS, in db
 		if fsPath == dbData.Path {
 			res, err := r.ChangedFile(pack, fsPath, dbData)
-			utils.CheckError(fmt.Sprintf("%v:error compare files", errMsg), &err)
+			utils.CheckError(fmt.Sprintf("%v:error compare files", errPackIndMsg), &err)
 			if res {
 				fmt.Println("  .", dbData.Path)
 				if !changed {
@@ -114,7 +114,7 @@ func processPackIndex(r *obj.Repo, pack string) bool {
 		} else if fsPath < dbData.Path {
 			// добавляем запись о файле в БД
 			err = r.AddFile(packID, pack, fsPath)
-			utils.CheckError(fmt.Sprintf("%v", errMsg), &err)
+			utils.CheckError(fmt.Sprintf("%v", errPackIndMsg), &err)
 			fmt.Println("  +", fsPath)
 			if !changed {
 				changed = true
@@ -124,14 +124,14 @@ func processPackIndex(r *obj.Repo, pack string) bool {
 			// not in FS, in db
 		} else if fsPath > dbData.Path {
 			err = r.RemoveFile(dbData.Id)
-			utils.CheckError(fmt.Sprintf("%v", errMsg), &err)
+			utils.CheckError(fmt.Sprintf("%v", errPackIndMsg), &err)
 			fmt.Println("  -", dbData.Path)
 			if !changed {
 				changed = true
 			}
 			dbInd++
 		} else {
-			panic(fmt.Sprintf("%v something goes wrong", errMsg))
+			panic(fmt.Sprintf("%v something goes wrong", errPackIndMsg))
 		}
 		continue
 	}
@@ -139,7 +139,7 @@ func processPackIndex(r *obj.Repo, pack string) bool {
 	// пересчитываем контрольную сумму пакета при наличии изменений файлов
 	if changed {
 		err = r.HashSumPack(packID)
-		utils.CheckError(fmt.Sprintf("%v", errMsg), &err)
+		utils.CheckError(fmt.Sprintf("%v", errPackIndMsg), &err)
 	}
 	return changed
 }

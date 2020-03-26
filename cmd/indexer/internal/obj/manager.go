@@ -2,9 +2,7 @@ package obj
 
 import (
 	"database/sql"
-	"errors"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -22,6 +20,8 @@ const (
 	DBVersionMajor int64  = 1
 	DBVersionMinor int64  = 3
 )
+
+var err error
 
 type ErrAlias error
 
@@ -49,7 +49,7 @@ type FileInfo struct {
 // NewRepoObj возвращает объект repoObj
 func NewRepoObj(path string) (*Repo, error) {
 	repo := new(Repo)
-	if err := repo.SetPath(path); err != nil {
+	if err = repo.SetPath(path); err != nil {
 		return nil, err
 	}
 	return repo, nil
@@ -73,7 +73,7 @@ func (r *Repo) Path() string {
 func (r *Repo) OpenDB() error {
 	fp := dbPath(r.path)
 	if !utils.FileExists(fp) {
-		return fmt.Errorf("репозиторий не инициализирован")
+		return fmt.Errorf("Репозиторий не инициализирован")
 	}
 	db, err := newConnection(fp)
 	if err != nil {
@@ -85,7 +85,7 @@ func (r *Repo) OpenDB() error {
 	}
 	// инициализация поддержки первичных ключей в БД
 	if _, err := r.db.Exec("PRAGMA foreign_keys = ON;"); err != nil {
-		fmt.Println("error init PRAGMA", err)
+		return fmt.Errorf("init PRAGMA failed", err)
 	}
 	return nil
 }
@@ -106,15 +106,14 @@ func (r *Repo) Close() error {
 		if _, err := r.db.Exec("PRAGMA optimize;"); err != nil {
 			return fmt.Errorf("ошибка оптимизации БД: ", err)
 		}
-		if err := r.db.Close(); err != nil {
+		if err = r.db.Close(); err != nil {
 			return fmt.Errorf("ошибка закрытия БД:", err)
 		}
 	}
 	return nil
 }
 
-func (r *Repo) Clean() (err error) {
-
+func (r *Repo) Clean() error {
 	if r.db != nil {
 		if _, err = r.db.Exec("VACUUM"); err != nil {
 			return fmt.Errorf("ошибка очистки БД: ", err)
@@ -123,13 +122,13 @@ func (r *Repo) Clean() (err error) {
 			return fmt.Errorf("ошибка перестройки идекса таблиц БД: ", err)
 		}
 	}
-	return
+	return nil
 }
 
 // PackageID возвращает ID пакета
 func (r *Repo) PackageID(pack string) (int64, error) {
 	var id int64
-	if err := r.db.QueryRow("SELECT id FROM packages WHERE name=?;", pack).Scan(&id); err == sql.ErrNoRows {
+	if err = r.db.QueryRow("SELECT id FROM packages WHERE name=?;", pack).Scan(&id); err == sql.ErrNoRows {
 		// пакета нет в БД - добавляем
 		res, err := r.db.Exec("INSERT INTO packages ('name', 'hash') VALUES (?, 0);", pack)
 		if err != nil {
@@ -171,7 +170,7 @@ func (r *Repo) SetAlias(alias []string) error {
 		switch err.(type) {
 		case sqlite3.Error:
 			if err.(sqlite3.Error).Code == sqlite3.ErrConstraint {
-				return ErrAlias(fmt.Errorf("псевдоним [ %v ] или псевдоним для пакета [ %v ] уже заданы", alias[1], alias[0]))
+				return ErrAlias(fmt.Errorf("Псевдоним [ %v ] или псевдоним для пакета [ %v ] уже заданы", alias[1], alias[0]))
 			}
 		default:
 			return fmt.Errorf(":manager: %v", err)
@@ -236,7 +235,7 @@ func (r *Repo) DisabledPacks() []string { //todo в горутину
 	if len(r.disPacks) == 0 {
 		rows, err := r.db.Query("SELECT Name FROM excludes;")
 		if err != nil {
-			log.Fatalf("error select disabled packs: %v", err)
+			panic(fmt.Errorf("error select disabled packs: %v", err))
 		}
 		defer rows.Close()
 		var name string
@@ -269,7 +268,7 @@ func (r *Repo) HashedPackages(packs chan HashedPackData) error {
 
 	var pData HashedPackData
 	for rows.Next() {
-		if err := rows.Scan(&pData.Id, &pData.Name, &pData.Hash); err != nil {
+		if err = rows.Scan(&pData.Id, &pData.Name, &pData.Hash); err != nil {
 			return fmt.Errorf("HashedPackages: %v", err)
 		}
 		pData.Alias = r.Alias(pData.Name)
@@ -451,13 +450,13 @@ func (r *Repo) RemoveFile(id int64) error {
 
 //...
 func (r *Repo) CleanPacks() error {
-	// clean caches lists
+	// clean cached lists
 	r.actPacks = []string{}
 	r.disPacks = []string{}
 	r.indPacks = []string{}
 	for _, pack := range r.packages() { // проход по списку пакетов в БД
 		if !r.PackIsActive(pack) {
-			if err := r.RemovePack(pack); err != nil {
+			if err = r.RemovePack(pack); err != nil {
 				return err
 			}
 		}
@@ -575,10 +574,10 @@ func (r *Repo) HashSumPack(id int64) error {
 }
 
 //...
-func (r *Repo) SetPrepare() (err error) {
+func (r *Repo) SetPrepare() error {
 	//
-	r.stmtAddFile, err = r.db.Prepare("INSERT INTO files ('package_id', 'path', 'size', 'mdate', 'hash')" +
-		" VALUES (?, ?, ?, ?, ?);")
+	sqlExpr := "INSERT INTO files ('package_id', 'path', 'size', 'mdate', 'hash') VALUES (?, ?, ?, ?, ?);"
+	r.stmtAddFile, err = r.db.Prepare(sqlExpr)
 	if err != nil {
 		return err
 	}
@@ -592,7 +591,7 @@ func (r *Repo) SetPrepare() (err error) {
 	if err != nil {
 		return err
 	}
-	return
+	return nil
 }
 
 // ...
@@ -612,12 +611,12 @@ type RepoStData struct {
 func (r *Repo) Status() (*RepoStData, error) {
 	data := new(RepoStData)
 	// количество активных пакетов
-	if err := r.db.QueryRow("SELECT COUNT() FROM packages;").Scan(&data.IndexedCnt); err != nil {
+	if err = r.db.QueryRow("SELECT COUNT() FROM packages;").Scan(&data.IndexedCnt); err != nil {
 		return nil, fmt.Errorf("manager::Status::Active: %v", err)
 	}
 
 	// количество заблокированных
-	if err := r.db.QueryRow("SELECT COUNT() FROM excludes;").Scan(&data.BlockedCnt); err != nil {
+	if err = r.db.QueryRow("SELECT COUNT() FROM excludes;").Scan(&data.BlockedCnt); err != nil {
 		return nil, fmt.Errorf("manager::Status::Blocked: %v", err)
 	}
 
@@ -657,7 +656,6 @@ func (r *Repo) Status() (*RepoStData, error) {
 		data.HashSize = fInfo.Size()
 		data.HashMDate = fInfo.ModTime()
 	}
-
 	return data, nil
 }
 
@@ -725,7 +723,7 @@ func (r *Repo) VersionDB() (int64, int64, error) {
 	var vmaj, vmin int64
 	err := r.db.QueryRow("SELECT vers_major, vers_minor FROM info WHERE id=1;").Scan(&vmaj, &vmin)
 	if err != nil {
-		return 0, 0, errors.New("нет данных о версии БД; произведите инициализацию")
+		return 0, 0, fmt.Errorf("нет данных о версии БД; произведите инициализацию")
 	}
 	return vmaj, vmin, nil
 }
@@ -734,8 +732,7 @@ func (r *Repo) VersionDB() (int64, int64, error) {
 func InitDB(path string) error {
 	fp := dbPath(path)
 	if utils.FileExists(fp) {
-		fmt.Println("репозиторий уже инициализирован. Для повторной инициализации удалите файл БД")
-		return nil
+		return fmt.Errorf("попытка повторной инициализации")
 	}
 	db, err := newConnection(fp)
 	if err != nil {
@@ -751,7 +748,7 @@ func InitDB(path string) error {
 		1, DBVersionMajor, DBVersionMinor); err != nil {
 		return err
 	}
-	fmt.Println("репозиторий инициализирован")
+	fmt.Println("Репозиторий инициализирован")
 	return nil
 }
 

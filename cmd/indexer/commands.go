@@ -25,7 +25,6 @@ func init() {
 	flag.Parse()
 }
 func Run() {
-	// отложенная обработка сообщений об ошибках
 	// проверка на наличие пути к репозиторию
 	if repoPath == "" {
 		panic("не указан путь к репозиторию")
@@ -43,7 +42,7 @@ func Run() {
 	// инициализация репозитория
 	case "init":
 		err := obj.InitDB(repoPath)
-		utils.CheckError(fmt.Sprintf("ошибка при инициализации репозитория %v", repoPath), &err)
+		utils.CheckError(fmt.Sprintf("ошибка при инициализации репозитория '%v':", repoPath), &err)
 		return // выходим, чтобы не инициализировать подключение к БД
 	// on|off режим регламента
 	case "regl", "reglament":
@@ -61,7 +60,7 @@ func Run() {
 	repoPtr, err := obj.NewRepoObj(repoPath)
 	utils.CheckError(tmplErrMsg, &err)
 	err = repoPtr.OpenDB()
-	utils.CheckError(tmplErrMsg, &err)
+	utils.CheckError("", &err)
 	defer func() {
 		err := repoPtr.Close()
 		utils.CheckError(tmplErrMsg, &err)
