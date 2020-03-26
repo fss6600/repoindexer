@@ -24,6 +24,7 @@ func init() {
 	flag.BoolVar(&flagDebug, "d", false, "debug: режим отладки")
 	flag.Parse()
 }
+
 func Run() {
 	// проверка на наличие пути к репозиторию
 	if repoPath == "" {
@@ -72,7 +73,7 @@ func Run() {
 		cmdIndex := newFlagSet("index")
 		packs := cmdIndex.Args() // из командной строки
 		if len(packs) == 0 {
-			packs = readFromStdin() // из stdin
+			packs = readDataFromStdin() // из stdin
 		}
 		if len(packs) == 0 {
 			packs = repoPtr.ActivePacks() // активные
@@ -95,7 +96,7 @@ func Run() {
 		packetsList := cmdSetStatus.Args()
 		if len(packetsList) == 0 {
 			// список пакетов из stdin
-			packetsList = readFromStdin()
+			packetsList = readDataFromStdin()
 			if len(packetsList) == 0 {
 				panic("укажите по крайней мере один пакет")
 			}
@@ -120,7 +121,7 @@ func Run() {
 			aliases = cmdAlias.Args()[1:]
 			if len(aliases) == 0 {
 				// from stdin
-				aliases = readFromStdin()
+				aliases = readDataFromStdin()
 			} else if len(aliases) == 0 {
 				panic("укажите по крайней мере 1 пару ПАКЕТ=ПСЕВДОНИМ")
 			}
@@ -151,6 +152,10 @@ func Run() {
 		fmt.Println("OK")
 	// очистка БД от данных
 	case "cleardb":
+		// todo добавить подтверждение
+		if !userAccept("Данная операция удаляет данные из БД") {
+			return
+		}
 		var cmd string
 		cmdAlias := newFlagSet("cleardb")
 		if len(cmdAlias.Args()) == 0 {
@@ -167,7 +172,26 @@ func Run() {
 	}
 }
 
-func readFromStdin() []string {
+func userAccept(msg string) bool {
+	scanner := bufio.NewScanner(os.Stdin)
+	for i := 0; i < 3; i++ {
+		fmt.Print(msg + ". Продолжить? (y/N): ")
+		scanner.Scan()
+		txt := scanner.Text()
+		if len(txt) == 0 {
+			return false
+		} else if txt[0] == 'n' || txt[0] == 'N' {
+			return false
+		} else if txt[0] == 'y' || txt[0] == 'Y' {
+			return true
+		} else {
+			continue
+		}
+	}
+	return false
+}
+
+func readDataFromStdin() []string {
 	ch := make(chan string)
 	go func(chan string) {
 		scanner := bufio.NewScanner(os.Stdin)
