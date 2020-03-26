@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/pmshoot/repoindexer/cmd/indexer/internal/obj"
 	"github.com/pmshoot/repoindexer/cmd/indexer/internal/proc"
@@ -168,14 +169,30 @@ func Run() {
 	}
 }
 
-// todo: добавить таймер ожидания на 3-5 сек с аварийным выходом
 func readFromStdin() []string {
+	ch := make(chan string)
+	go func(chan string) {
+		scanner := bufio.NewScanner(os.Stdin)
+		for scanner.Scan() {
+			ch <- scanner.Text()
+		}
+		close(ch)
+	}(ch)
+
 	lst := make([]string, 0)
-	scanner := bufio.NewScanner(os.Stdin)
-	for scanner.Scan() {
-		lst = append(lst, scanner.Text())
+
+	for {
+		select {
+		case input, more := <-ch:
+			if more {
+				lst = append(lst, input)
+			} else {
+				return lst
+			}
+		case <-time.After(time.Second * 6):
+			panic("превышено время ожидания данных со стандартного ввода")
+		}
 	}
-	return lst
 }
 
 func newFlagSet(name string) *flag.FlagSet {
