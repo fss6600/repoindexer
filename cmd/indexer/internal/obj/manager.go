@@ -703,16 +703,20 @@ func (r *Repo) checkDB() error {
 			}
 		}
 	}
+	return nil
+}
 
+func (r *Repo) CheckDBVersion() error {
 	vmaj, vmin, err := r.VersionDB()
 	if err != nil {
 		return err
 	} // todo - миграцию при поднятии версии программы
-	if vmaj < DBVersionMajor || vmin < DBVersionMinor {
-		return fmt.Errorf("версия БД [%d.%d] не соответствует требуемой[%d.%d]; произведите инициализацию", // миграцию?
-			vmaj, vmin, DBVersionMajor, DBVersionMinor)
+	if DBVersionMajor > vmaj {
+		return fmt.Errorf("\n\tУстаревшая версия репозитория. Требуется переиндексация")
+	} else if DBVersionMinor > vmin {
+		return fmt.Errorf("\n\tТребуется миграция БД репозитория")
 	} else if vmaj > DBVersionMajor || vmin > DBVersionMinor {
-		return fmt.Errorf("версия БД [%d.%d] старше требуемой[%d.%d]; возможно вы используете старую версию программы",
+		return fmt.Errorf("\n\tверсия БД [%d.%d] старше требуемой[%d.%d]; возможно вы используете старую версию программы",
 			vmaj, vmin, DBVersionMajor, DBVersionMinor)
 	}
 	return nil

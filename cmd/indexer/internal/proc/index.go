@@ -10,6 +10,8 @@ import (
 
 // Index обработка и индексация пакетов в репозитории
 func Index(r *obj.Repo, packs []string) {
+	err = r.CheckDBVersion()
+	utils.CheckError("", &err)
 	const errIndexMsg = errMsg + ":index:"
 	var changed bool
 	CheckRegl(r.Path())

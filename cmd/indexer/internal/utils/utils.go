@@ -106,7 +106,7 @@ func WriteGzipHash(fp, hash string) error {
 //...
 func CheckError(str string, err *error) {
 	if *err != nil {
-		panic(fmt.Errorf("%v: %v", str, *err))
+		panic(fmt.Errorf("%v %v", str, *err))
 	}
 }
 

@@ -10,6 +10,8 @@ import (
 )
 
 func Populate(r *obj.Repo) {
+	err = r.CheckDBVersion()
+	utils.CheckError("", &err)
 	const errPopMsg = errMsg + ":populate:"
 	fmt.Print("Выгрузка данных в индекс файл: ")
 	CheckRegl(r.Path())

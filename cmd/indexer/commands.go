@@ -13,7 +13,7 @@ import (
 )
 
 var repoPath string
-var flagPopIndex, flagDebug bool
+var flagPopIndex, flagDebug, flagVersion bool
 
 const tmplErrMsg = "main:"
 
@@ -22,10 +22,16 @@ func init() {
 	flag.StringVar(&repoPath, "r", "", "repopath: полный путь к репозиторию")
 	flag.BoolVar(&flagPopIndex, "p", false, "populate: выгрузить данные в индекс-файл после индексации")
 	flag.BoolVar(&flagDebug, "d", false, "debug: режим отладки")
+	flag.BoolVar(&flagVersion, "v", false, "version: версия программы")
 	flag.Parse()
 }
 
 func Run() {
+	if flagVersion {
+		fmt.Printf("Версия программы\t: %v\n", version)
+		return
+	}
+
 	// проверка на наличие пути к репозиторию
 	if repoPath == "" {
 		panic("не указан путь к репозиторию")
@@ -137,13 +143,6 @@ func Run() {
 			cmd = cmdAlias.Args()[0]
 		}
 		proc.List(repoPtr, cmd)
-		// вывод версии программы, БД
-	case "version":
-		vMaj, vMin, err := repoPtr.VersionDB()
-		utils.CheckError(tmplErrMsg, &err)
-		fmt.Printf("Версия программы\t: %v\n", version)
-		fmt.Printf("Версия БД программы\t: %d.%d\n", obj.DBVersionMajor, obj.DBVersionMinor)
-		fmt.Printf("Версия БД репозитория\t: %d.%d\n", vMaj, vMin)
 	// упаковка и переиндексация данных в БД
 	case "clean":
 		fmt.Print("Упаковка БД: ")

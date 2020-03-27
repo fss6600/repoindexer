@@ -48,6 +48,19 @@ func RepoStatus(r *obj.Repo) {
 	} else {
 		fmt.Println("index.gz.sha1 \t\t нет данных")
 	}
+	fmt.Println("")
+
+	vMaj, vMin, err := r.VersionDB()
+	if err != nil {
+		panic("\n\tНе удалось получить версию БД. Требуется переиндексация репозитория")
+	}
+
+	tmpl = "Версия БД %-40s%d.%d\n"
+	fmt.Printf(tmpl, "программы: ", obj.DBVersionMajor, obj.DBVersionMinor)
+	fmt.Printf(tmpl, "репозитория: ", vMaj, vMin)
+
+	err = r.CheckDBVersion()
+	utils.CheckError("", &err)
 
 	if unIndexed > 0 || unIndexed < 0 {
 		fmt.Println(doIndexMsg)
