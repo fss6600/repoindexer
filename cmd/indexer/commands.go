@@ -166,6 +166,8 @@ func Run() {
 	// вывод информации о репозитории
 	case "status":
 		proc.RepoStatus(repoPtr)
+	case "migrate":
+		proc.MigrateDB(repoPtr)
 	default:
 		panic("команда не опознана")
 	}
