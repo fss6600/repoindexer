@@ -24,7 +24,6 @@ func Alias(r *obj.Repo, cmd string, aliases []string) {
 					panic(fmt.Errorf("%v:%v:%v", errAliasMsg, "set", err))
 				}
 			}
-			fmt.Printf("Установлен псевдоним: [ %v ]=( %v )\n", alias[0], alias[1])
 		}
 		fmt.Println(doPopMsg)
 	case "del":
@@ -44,7 +43,6 @@ func Alias(r *obj.Repo, cmd string, aliases []string) {
 					panic(fmt.Errorf("%v:%v%v", errAliasMsg, "del", err))
 				}
 			}
-			fmt.Printf("Удален псевдоним: [ %v ]\n", alias)
 		}
 		fmt.Println(doPopMsg)
 	case "", "show":

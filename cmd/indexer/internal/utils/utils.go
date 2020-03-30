@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"bufio"
 	"compress/gzip"
 	"crypto"
 	"fmt"
@@ -118,4 +119,23 @@ func CheckPanic(debug bool) {
 		}
 	}
 
+}
+
+func UserAccept(msg string) bool {
+	scanner := bufio.NewScanner(os.Stdin)
+	for i := 0; i < 3; i++ {
+		fmt.Print(msg + ". Продолжить? (y/N): ")
+		scanner.Scan()
+		txt := scanner.Text()
+		if len(txt) == 0 {
+			return false
+		} else if txt[0] == 'n' || txt[0] == 'N' {
+			return false
+		} else if txt[0] == 'y' || txt[0] == 'Y' {
+			return true
+		} else {
+			continue
+		}
+	}
+	return false
 }

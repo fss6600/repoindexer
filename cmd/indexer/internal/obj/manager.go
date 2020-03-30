@@ -71,7 +71,7 @@ func (r *Repo) Path() string {
 
 // OpenDB открывает подключение к БД
 func (r *Repo) OpenDB() error {
-	fp := dbPath(r.path)
+	fp := DBPath(r.path)
 	if !utils.FileExists(fp) {
 		return fmt.Errorf("Репозиторий не инициализирован")
 	}
@@ -109,6 +109,7 @@ func (r *Repo) Close() error {
 		if err = r.db.Close(); err != nil {
 			return fmt.Errorf("ошибка закрытия БД:", err)
 		}
+		r.db = nil
 	}
 	return nil
 }
@@ -178,6 +179,7 @@ func (r *Repo) SetAlias(alias []string) error {
 	} else if c, err := res.RowsAffected(); err != nil || c != 1 {
 		return fmt.Errorf(":manager: псевдоним не добавлен: err=%v;count=%d", err, c)
 	}
+	fmt.Printf("Установлен псевдоним: [ %v ]=( %v )\n", alias[0], alias[1])
 	return nil
 }
 
@@ -188,6 +190,7 @@ func (r *Repo) DelAlias(alias string) error {
 	} else if c, _ := res.RowsAffected(); c != 1 {
 		return ErrAlias(fmt.Errorf("не найден псевдоним [ %v ]", alias))
 	}
+	fmt.Printf("Удален псевдоним: [ %v ]\n", alias)
 	return nil
 }
 
@@ -628,7 +631,7 @@ func (r *Repo) Status() (*RepoStData, error) {
 	}
 
 	// данные БД файла
-	fInfo, err := os.Stat(dbPath(r.Path()))
+	fInfo, err := os.Stat(DBPath(r.Path()))
 	if err != nil {
 		data.DBSize = -1
 		data.DBMDate = time.Time{}
@@ -734,7 +737,7 @@ func (r *Repo) VersionDB() (int64, int64, error) {
 
 // InitDB инициализирует файл db
 func InitDB(path string) error {
-	fp := dbPath(path)
+	fp := DBPath(path)
 	if utils.FileExists(fp) {
 		return fmt.Errorf("попытка повторной инициализации")
 	}
@@ -762,6 +765,15 @@ func newConnection(fp string) (*sql.DB, error) {
 }
 
 //...
-func dbPath(repoPath string) string {
+func DBPath(repoPath string) string {
 	return filepath.Join(repoPath, fileDBName)
+}
+
+//...
+func CleanForMigrate(repo *Repo) error {
+	for _, fp := range []string{fileDBName, Indexgz, Indexgz + ".sha1"} {
+		fp = filepath.Join(repo.Path(), fp)
+		_ = os.Remove(fp)
+	}
+	return nil
 }
