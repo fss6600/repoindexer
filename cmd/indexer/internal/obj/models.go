@@ -1,5 +1,7 @@
 package obj
 
+// from scripts/sql/initdb.sql
+
 const initSQL = `
 -- Скрипт инициализации БД
 DROP TABLE IF EXISTS files;
@@ -12,11 +14,11 @@ DROP TABLE IF EXISTS exludes;
 CREATE TABLE packages
 (
     id    INTEGER PRIMARY KEY AUTOINCREMENT,
-    name  VARCHAR     NOT NULL UNIQUE,
+    Name  VARCHAR     NOT NULL UNIQUE,
     hash  VARCHAR(40) NOT NULL
 );
 CREATE UNIQUE INDEX idx_packages
-    ON packages (name);
+    ON packages (Name);
 
 -- файлы в пакетах
 CREATE TABLE files
@@ -46,17 +48,16 @@ CREATE TABLE info
 CREATE TABLE aliases
 (
     alias VARCHAR NOT NULL UNIQUE ,
-    name  VARCHAR NOT NULL UNIQUE
+    Name  VARCHAR NOT NULL UNIQUE
 );
 CREATE UNIQUE INDEX idx_alias
-    ON aliases (name, alias);
+    ON aliases (Name, alias);
 
 -- заблокированные пакеты подсистем
 CREATE TABLE excludes
 (
-    name VARCHAR NOT NULL UNIQUE
+    Name VARCHAR NOT NULL UNIQUE
 );
-
-
-
+CREATE INDEX idx_excludes
+    ON excludes (Name);
 `
