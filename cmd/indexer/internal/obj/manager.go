@@ -18,7 +18,7 @@ const (
 	fileDBName     string = "index.db"
 	Indexgz        string = "index.gz"
 	DBVersionMajor int64  = 1
-	DBVersionMinor int64  = 3
+	DBVersionMinor int64  = 4
 )
 
 var err error
@@ -126,17 +126,24 @@ func (r *Repo) Clean() error {
 	return nil
 }
 
-// PackageID возвращает ID пакета
-func (r *Repo) PackageID(pack string) (int64, error) {
+// GetPackageID возвращает ID пакета
+func (r *Repo) GetPackageID(pack string) (int64, error) {
 	var id int64
 	if err = r.db.QueryRow("SELECT id FROM packages WHERE name=?;", pack).Scan(&id); err == sql.ErrNoRows {
-		// пакета нет в БД - добавляем
-		res, err := r.db.Exec("INSERT INTO packages ('name', 'hash') VALUES (?, 0);", pack)
-		if err != nil {
-			return 0, fmt.Errorf("create pack [ %v ] record in db: %v", pack, err)
-		}
-		id, _ = res.LastInsertId()
+		return 0, err
+	} else if err != nil {
+		panic(fmt.Errorf("ошибка получения ID пакета [ %v ]: %v", pack, err))
 	}
+	return id, nil
+}
+
+func (r *Repo) NewPackage(name string) (int64, error) {
+	var id int64
+	res, err := r.db.Exec("INSERT INTO packages ('name', 'hash') VALUES (?, 0);", name)
+	if err != nil {
+		return 0, fmt.Errorf("create pack [ %v ] record in db: %v", name, err)
+	}
+	id, _ = res.LastInsertId()
 	return id, nil
 }
 
@@ -255,12 +262,13 @@ type HashedPackData struct {
 	Name  string            `json:"-"`
 	Alias string            `json:"alias"`
 	Hash  string            `json:"phash"`
+	Exec  string            `json:"execf"`
 	Files map[string]string `json:"files"`
 }
 
 //...
 func (r *Repo) HashedPackages(packs chan HashedPackData) error {
-	rows, err := r.db.Query("SELECT id, Name, hash FROM packages ORDER BY Name;")
+	rows, err := r.db.Query("SELECT id, name, hash, exec FROM packages ORDER BY Name;")
 	if err == sql.ErrNoRows {
 		close(packs)
 		return nil
@@ -271,7 +279,7 @@ func (r *Repo) HashedPackages(packs chan HashedPackData) error {
 
 	var pData HashedPackData
 	for rows.Next() {
-		if err = rows.Scan(&pData.Id, &pData.Name, &pData.Hash); err != nil {
+		if err = rows.Scan(&pData.Id, &pData.Name, &pData.Hash, &pData.Exec); err != nil {
 			return fmt.Errorf("HashedPackages: %v", err)
 		}
 		pData.Alias = r.Alias(pData.Name)
@@ -290,7 +298,8 @@ func (r *Repo) HashedPackages(packs chan HashedPackData) error {
 	return nil
 }
 
-// FilesPackRepo возвращает список файлов указанного пакета в репозитории // todo - на горутины с передачей данных через канал
+// todo - на горутины с передачей данных через канал. перестроить для повторного использования в execfile
+// FilesPackRepo возвращает список файлов указанного пакета в репозитории
 func (r *Repo) FilesPackRepo(pack string) ([]string, error) {
 	path := filepath.Join(r.path, pack) // base Path repopath/packname
 	fList := make([]string, 0, 50)      // reserve place for ~50 files
@@ -298,37 +307,36 @@ func (r *Repo) FilesPackRepo(pack string) ([]string, error) {
 	erCh := make(chan error)            // channel for error
 	unWanted, _ := regexp.Compile("(.*[Tt]humb[s]?\\.db)|(.*~.*)")
 
-	// --- go walkPack(Path, fpCh, erCh)
-	go func(root string, fpCh chan<- string, erCh chan<- error) {
-		err := filepath.Walk(root, func(fp string, info os.FileInfo, er error) error {
-			if er != nil {
-				// debug message: er
-				return fmt.Errorf("не найден пакет: %q\n", fp)
-			}
-			if info.IsDir() { // skip directory
-				return nil
-			} else if unWanted.MatchString(fp) { // skip unwanted file
-				//fmt.Println("skip unwanted:", fp) // todo add to log.debug
-				return nil
-			}
-			fp, _ = filepath.Rel(path, fp) // trim base Path repopath/packname
-			fpCh <- fp
-			return nil
-		})
-		if err != nil {
-			erCh <- err
-			return
-		}
-		close(fpCh)
-	}(path, fpCh, erCh)
+	go utils.DirWalk(path, fpCh, erCh)
+	//go func(root string, fpCh chan<- string, erCh chan<- error) {
+	//	err := filepath.Walk(root, func(fp string, info os.FileInfo, er error) error {
+	//		if er != nil {
+	//			// debug message: er
+	//			return fmt.Errorf("не найден пакет: %q\n", fp)
+	//		}
+	//		if info.IsDir() { // skip directory
+	//			return nil
+	//		} else if unWanted.MatchString(fp) { // skip unwanted file
+	//			//fmt.Println("skip unwanted:", fp) // todo add to log.debug
+	//			return nil
+	//		}
+	//		fp, _ = filepath.Rel(path, fp) // trim base Path repopath/packname
+	//		fpCh <- fp
+	//		return nil
+	//	})
+	//	if err != nil {
+	//		erCh <- err
+	//		return
+	//	}
+	//	close(fpCh)
+	//}(path, fpCh, erCh)
 	// ---
-
 	for {
 		select {
 		case err := <-erCh:
 			return nil, err
-		case fp, next := <-fpCh:
-			if next {
+		case fp, ok := <-fpCh:
+			if ok && !unWanted.MatchString(fp) {
 				fList = append(fList, fp)
 			} else {
 				return fList, nil
@@ -725,6 +733,19 @@ func (r *Repo) CheckDBVersion() error {
 	return nil
 }
 
+func (r *Repo) EmptyExecFilesList() []string {
+	var name string
+	var emptyList []string
+
+	rows, _ := r.db.Query("SELECT name FROM packages WHERE exec is null;")
+	defer rows.Close()
+	for rows.Next() {
+		_ = rows.Scan(&name)
+		emptyList = append(emptyList, name)
+	}
+	return emptyList
+}
+
 //..
 func (r *Repo) VersionDB() (int64, int64, error) {
 	var vmaj, vmin int64
@@ -733,6 +754,74 @@ func (r *Repo) VersionDB() (int64, int64, error) {
 		return 0, 0, fmt.Errorf("нет данных о версии БД; произведите инициализацию")
 	}
 	return vmaj, vmin, nil
+}
+
+func (r *Repo) ExecFileSet(pack string, force bool) error {
+	id, err := r.GetPackageID(pack)
+	utils.CheckError(fmt.Sprintf("не найден пакет в БД: %v", pack), &err)
+
+	switch force {
+	case false:
+		var exec_db string
+		if err := r.db.QueryRow(
+			"SELECT CASE WHEN exec IS null THEN '' ELSE exec END exec FROM packages WHERE id=?;", id).Scan(
+			&exec_db); err != nil {
+			//if err := r.db.QueryRow("SELECT exec FROM packages WHERE id=?;", id).Scan(&exec_db); err != nil {
+			return err
+		}
+		if exec_db != "" {
+			fmt.Printf("\t%v: уже установлен, пропуск\n", pack)
+			return nil
+		}
+		fallthrough
+	case true:
+		execFile := defineExecFile(r, pack)
+		res, err := r.db.Exec("UPDATE packages SET exec=? WHERE id=?;", execFile, id)
+		if err != nil {
+			return fmt.Errorf("ExecFileSet: %v", err)
+		}
+		if c, _ := res.RowsAffected(); c == 0 {
+			return fmt.Errorf("ExecFileSet: должна быть обновлена 1 запись: 0")
+		}
+		fmt.Printf("\t%v: установлен в [ %v ]\n", pack, execFile)
+	}
+	return nil
+}
+
+func (r *Repo) ExecFileDel(pack string) error {
+	id, err := r.GetPackageID(pack)
+	utils.CheckError(fmt.Sprintf("не найден пакет в БД: %v", pack), &err)
+	res, err := r.db.Exec("UPDATE packages SET exec='noexec' WHERE id=?;", id)
+	if err != nil {
+		return fmt.Errorf("ExecFileDel: %v", err)
+	}
+	if c, _ := res.RowsAffected(); c == 0 {
+		return fmt.Errorf("ExecFileDel: должна быть обновлена 1 запись: 0")
+	}
+	fmt.Printf("Исполняемый файл пакета '%v' установлен в 'noexec' \n", pack)
+	return nil
+}
+
+func (r *Repo) ExecFileInfo(pack string) (string, error) {
+	id, err := r.GetPackageID(pack)
+	utils.CheckError(fmt.Sprintf("не найден пакет в БД: %v", pack), &err)
+	var exec_db string
+
+	if err := r.db.QueryRow(
+		"SELECT CASE WHEN exec IS null THEN '' ELSE exec END exec FROM packages WHERE id=?;", id).Scan(
+		&exec_db); err != nil {
+		//if err := r.db.QueryRow("SELECT exec FROM packages WHERE id=?;", id).Scan(&exec_db); err != nil {
+		return "", err
+	}
+	return exec_db, nil
+}
+
+func (r *Repo) CheckEmptyExecFiles() error {
+	if len(r.EmptyExecFilesList()) > 0 {
+		return fmt.Errorf("\n\tТребуется определить исполняемые файлы\n\t" +
+			"Запустите программу с командой 'exec check'\n")
+	}
+	return nil
 }
 
 // InitDB инициализирует файл db

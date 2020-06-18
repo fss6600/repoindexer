@@ -14,8 +14,9 @@ DROP TABLE IF EXISTS exludes;
 CREATE TABLE packages
 (
     id    INTEGER PRIMARY KEY AUTOINCREMENT,
-    Name  VARCHAR     NOT NULL UNIQUE,
-    hash  VARCHAR(40) NOT NULL
+    name  VARCHAR     NOT NULL UNIQUE,
+    hash  VARCHAR(40) NOT NULL,
+    exec  VARCHAR
 );
 CREATE UNIQUE INDEX idx_packages
     ON packages (Name);

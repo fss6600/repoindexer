@@ -14,6 +14,7 @@ func Index(r *obj.Repo, packs []string) {
 	utils.CheckError("", &err)
 	const errIndexMsg = errMsg + ":index:"
 	var changed bool
+
 	CheckRegl(r.Path())
 	for _, pack := range packs {
 		if r.PackIsBlocked(pack) {
@@ -28,11 +29,17 @@ func Index(r *obj.Repo, packs []string) {
 			panic("задано пустое имя пакета")
 		}
 		fmt.Println("[", pack, "]")
-		changed = processPackIndex(r, pack)
+		if processPackIndex(r, pack) && !changed {
+			changed = true
+		}
+
 	}
 	fmt.Println()
 	err = r.CleanPacks()
 	utils.CheckError(fmt.Sprintf("%v:cleanpacks:", errIndexMsg), &err)
+
+	obj.ShowEmptyExecFiles(r)
+
 	if changed {
 		fmt.Println(doPopMsg)
 	} else {
@@ -55,8 +62,13 @@ func processPackIndex(r *obj.Repo, pack string) bool {
 	)
 	fsList, err = r.FilesPackRepo(pack)
 	utils.CheckError("", &err)
-	packID, err = r.PackageID(pack)
-	utils.CheckError(fmt.Sprintf("%v:%v:", errPackIndMsg, "PackageID"), &err)
+
+	packID, err = r.GetPackageID(pack)
+	if err != nil { // нет такого пакета
+		packID, err = r.NewPackage(pack)
+		utils.CheckError(fmt.Sprintf("%v:%v:", errPackIndMsg, "NewPackage"), &err)
+	}
+
 	dbList, err = r.FilesPackDB(packID)
 	utils.CheckError(fmt.Sprintf("%v:%v:", errPackIndMsg, "FilesPackDB"), &err)
 

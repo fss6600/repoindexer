@@ -6,9 +6,9 @@ var err error
 const (
 	fnReglament string = "__REGLAMENT__"
 	errMsg             = "Error:"
-	doPopMsg           = "\n\tВыгрузите данные в индекс-файл командой 'pop'"
-	doIndexMsg         = "\n\tПроиндексируйте пакеты командой 'index [...pacnames]'"
-	noChangeMsg        = "Изменений нет"
+	doPopMsg           = "\n\tВыгрузите данные в индекс-файл командой 'pop'\n"
+	doIndexMsg         = "\n\tПроиндексируйте пакеты командой 'index [...pacnames]'\n"
+	noChangeMsg        = "Изменений нет\n"
 )
 
 // list

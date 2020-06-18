@@ -78,23 +78,35 @@ func Run() {
 	case "index":
 		cmdIndex := newFlagSet("index")
 		packs := cmdIndex.Args() // из командной строки
-		if len(packs) == 0 {
+		if len(packs) != 0 {
 			packs = readDataFromStdin() // из stdin
 		}
 		if len(packs) == 0 {
 			packs = repoPtr.ActivePacks() // активные
 		}
 		proc.Index(repoPtr, packs)
-		// flag p: при указании - выгрузка в индекс-файл
-		if flagPopIndex {
-			goto DOPOPULATE
-		}
-		break
-	DOPOPULATE:
-		fallthrough
+	//	// flag p: при указании - выгрузка в индекс-файл
+	//	if flagPopIndex {
+	//		goto DOPOPULATE
+	//	}
+	//	break
+	//DOPOPULATE:
+	//	fallthrough
 	// выгрузка данных индексации из БД в Index.json[gz]
 	case "pop", "populate":
 		proc.Populate(repoPtr)
+	//
+	case "exec":
+		var cmd string
+		var packs []string
+		cmdExecFile := newFlagSet("execfile")
+
+		if len(cmdExecFile.Args()) == 0 {
+			panic("укажите одну из команд: check | set | del | show")
+		}
+		cmd = cmdExecFile.Args()[0]
+		packs = cmdExecFile.Args()[1:]
+		proc.ExecFile(repoPtr, cmd, packs)
 	// активация/блокировка пакетов в репозитории
 	case "enable", "disable":
 		cmdSetStatus := newFlagSet("setstatus")
@@ -125,10 +137,10 @@ func Run() {
 		} else {
 			cmd = cmdAlias.Args()[0]
 			aliases = cmdAlias.Args()[1:]
-			if len(aliases) == 0 {
+			if len(aliases) != 0 {
 				// from stdin
 				aliases = readDataFromStdin()
-			} else if len(aliases) == 0 {
+			} else {
 				panic("укажите по крайней мере 1 пару ПАКЕТ=ПСЕВДОНИМ")
 			}
 		}

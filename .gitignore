@@ -16,3 +16,4 @@
 .workspace*
 .vscode/
 .idea/
+bin/

@@ -139,3 +139,23 @@ func UserAccept(msg string) bool {
 	}
 	return false
 }
+
+// Рекурсивно обходит указанную папку и возвращает имена файлов в указанный канал или ошибки в соответствующий канал
+func DirWalk(root string, fpCh chan<- string, erCh chan<- error) {
+	err := filepath.Walk(root, func(fp string, info os.FileInfo, er error) error {
+		if er != nil {
+			return fmt.Errorf("не найден пакет: %q\n", fp)
+		}
+		if info.IsDir() { // skip directory
+			return nil
+		}
+		fp, _ = filepath.Rel(root, fp) // trim base Path repopath/packname
+		fpCh <- fp
+		return nil
+	})
+	if err != nil {
+		erCh <- err
+		return
+	}
+	close(fpCh)
+}

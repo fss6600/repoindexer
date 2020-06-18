@@ -62,6 +62,8 @@ func RepoStatus(r *obj.Repo) {
 	err = r.CheckDBVersion()
 	utils.CheckError("", &err)
 
+	obj.ShowEmptyExecFiles(r) // проверка на пустые исполняемый файлы
+
 	if unIndexed > 0 || unIndexed < 0 {
 		fmt.Println(doIndexMsg)
 	} else if rData.IndexMDate.IsZero() {
