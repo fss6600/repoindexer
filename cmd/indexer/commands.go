@@ -20,7 +20,6 @@ const tmplErrMsg = "main:"
 func init() {
 	// обработка флагов и переменных
 	flag.StringVar(&repoPath, "r", "", "repopath: полный путь к репозиторию")
-	flag.BoolVar(&flagPopIndex, "p", false, "populate: выгрузить данные в индекс-файл после индексации")
 	flag.BoolVar(&flagDebug, "d", false, "debug: режим отладки")
 	flag.BoolVar(&flagVersion, "v", false, "version: версия программы")
 	flag.Parse()

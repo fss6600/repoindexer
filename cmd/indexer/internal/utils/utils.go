@@ -9,7 +9,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"strings"
+	// "strings"
 )
 
 // проверяет наличие файла на диске
@@ -27,10 +27,8 @@ func TaskOwnerInfo() []byte {
 }
 
 func HashSum(sd string) string {
-	r := strings.NewReader(sd)
 	h := crypto.SHA1.New()
-	_, _ = io.Copy(h, r)
-	return fmt.Sprintf("%x", h.Sum(nil))
+	return fmt.Sprintf("%x", h.Sum([]byte(sd)))
 }
 
 // HashSumFile вычисляет контрольную сумму файла по алгоритму SHA1
