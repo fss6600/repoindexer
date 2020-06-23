@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
+	//"regexp"
 	"time"
 
 	"github.com/mattn/go-sqlite3"
@@ -305,7 +305,7 @@ func (r *Repo) FilesPackRepo(pack string) ([]string, error) {
 	fList := make([]string, 0, 50)      // reserve place for ~50 files
 	fpCh := make(chan string)           // channel for filepath
 	erCh := make(chan error)            // channel for error
-	unWanted, _ := regexp.Compile("(.*[Tt]humb[s]?\\.db)|(.*~.*)")
+	//unWanted, _ := regexp.Compile("(.*[Tt]humb[s]?\\.db)|(.*~.*)")
 
 	go utils.DirWalk(path, fpCh, erCh)
 	//go func(root string, fpCh chan<- string, erCh chan<- error) {
@@ -336,7 +336,8 @@ func (r *Repo) FilesPackRepo(pack string) ([]string, error) {
 		case err := <-erCh:
 			return nil, err
 		case fp, ok := <-fpCh:
-			if ok && !unWanted.MatchString(fp) {
+			//if ok && !unWanted.MatchString(fp) {
+			if ok {
 				fList = append(fList, fp)
 			} else {
 				return fList, nil

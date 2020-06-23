@@ -9,6 +9,8 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
+
 	// "strings"
 )
 
@@ -27,9 +29,12 @@ func TaskOwnerInfo() []byte {
 }
 
 func HashSum(sd string) string {
+	r := strings.NewReader(sd)
 	h := crypto.SHA1.New()
-	return fmt.Sprintf("%x", h.Sum([]byte(sd)))
+	_, _ = io.Copy(h, r)
+	return fmt.Sprintf("%x", h.Sum(nil))
 }
+
 
 // HashSumFile вычисляет контрольную сумму файла по алгоритму SHA1
 func HashSumFile(fp string) (string, error) {

@@ -77,20 +77,13 @@ func Run() {
 	case "index":
 		cmdIndex := newFlagSet("index")
 		packs := cmdIndex.Args() // из командной строки
-		if len(packs) != 0 {
-			packs = readDataFromStdin() // из stdin
+		if len(packs) == 0 {
+			packs = readDataFromStdin() // из stdin через pipe
 		}
 		if len(packs) == 0 {
 			packs = repoPtr.ActivePacks() // активные
 		}
 		proc.Index(repoPtr, packs)
-	//	// flag p: при указании - выгрузка в индекс-файл
-	//	if flagPopIndex {
-	//		goto DOPOPULATE
-	//	}
-	//	break
-	//DOPOPULATE:
-	//	fallthrough
 	// выгрузка данных индексации из БД в Index.json[gz]
 	case "pop", "populate":
 		proc.Populate(repoPtr)
@@ -136,7 +129,7 @@ func Run() {
 		} else {
 			cmd = cmdAlias.Args()[0]
 			aliases = cmdAlias.Args()[1:]
-			if len(aliases) != 0 {
+			if len(aliases) == 0 {
 				// from stdin
 				aliases = readDataFromStdin()
 			} else {

@@ -6,7 +6,7 @@ import (
 	"github.com/pmshoot/repoindexer/cmd/indexer/internal/utils"
 )
 
-const version string = "0.0.2a"
+const version string = "0.1.1"
 
 func main() {
 	// отложенная обработка сообщений об ошибках
