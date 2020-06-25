@@ -4,13 +4,14 @@ import (
 	"bufio"
 	"compress/gzip"
 	"crypto"
+	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
 	"strings"
-	// "strings"
 )
 
 // проверяет наличие файла на диске
@@ -139,4 +140,12 @@ func UserAccept(msg string) bool {
 		}
 	}
 	return false
+}
+
+func ReadFromJSONFile(fp string, v *interface{}) error {
+	buf, err := ioutil.ReadFile(fp)
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal(buf, v)
 }

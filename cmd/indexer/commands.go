@@ -2,9 +2,12 @@ package main
 
 import (
 	"bufio"
+	"encoding/json"
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/pmshoot/repoindexer/cmd/indexer/internal/obj"
@@ -17,9 +20,18 @@ var flagFullIndex, flagPopIndex, flagDebug, flagVersion bool
 
 const tmplErrMsg = "main:"
 
+type conf struct {
+	Repo string `json:"repo"`
+}
+
 func init() {
+	var rp string
+	if cnf, err := readConfFromJson(); err == nil {
+		rp = cnf.Repo
+	}
 	// обработка флагов и переменных
-	flag.StringVar(&repoPath, "r", "", "repopath: полный путь к репозиторию")
+	flag.StringVar(&repoPath, "r", rp, "repopath: полный путь к репозиторию")
+	fmt.Println("установлен путь к репозиторию:", repoPath)
 	flag.BoolVar(&flagDebug, "d", false, "debug: режим отладки")
 	flag.BoolVar(&flagFullIndex, "f", false, "full: режим принудительной полной индексации")
 	flag.BoolVar(&flagVersion, "v", false, "version: версия программы")
@@ -209,4 +221,28 @@ func newFlagSet(name string) *flag.FlagSet {
 	err := f.Parse(flag.Args()[1:])
 	utils.CheckError(tmplErrMsg, &err)
 	return f
+}
+
+func readConfFromJson() (conf, error) {
+	// проверка файла-конфигурации ,чтение настроек
+	var err error
+	cnf := conf{}
+	currDir, _ := os.Getwd()
+	root := filepath.Dir(os.Args[0])
+	files, _ := filepath.Glob(filepath.Join(currDir, root, "*.conf"))
+
+	if len(files) > 0 {
+		confFile := filepath.Clean(files[0])
+		buf, err := ioutil.ReadFile(confFile)
+		if err != nil {
+			return cnf, err
+		}
+		json.Unmarshal(buf, &cnf)
+
+		switch err.(type) {
+		case *json.SyntaxError:
+			fmt.Println("неверный синтаксис файла настроек")
+		}
+	}
+	return cnf, err
 }

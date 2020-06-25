@@ -49,14 +49,14 @@ type FileInfo struct {
 // NewRepoObj возвращает объект repoObj
 func NewRepoObj(path string) (*Repo, error) {
 	repo := new(Repo)
-	if err = repo.SetPath(path); err != nil {
+	if err = repo.setPath(path); err != nil {
 		return nil, err
 	}
 	return repo, nil
 }
 
-// SetPath ...
-func (r *Repo) SetPath(path string) error {
+// setPath ...
+func (r *Repo) setPath(path string) error {
 	if path == "" {
 		return fmt.Errorf("не указан путь к репозиторию")
 	}
