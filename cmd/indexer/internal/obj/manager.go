@@ -39,7 +39,7 @@ type Repo struct {
 
 // FileInfo структура с данными о файле пакета в БД
 type FileInfo struct {
-	ID    int64
+	ID    int64  // package ID
 	Path  string // путь файла относительно корневой папки пакета
 	Size  int64  // размер файла
 	MDate int64  // дата изменения
@@ -303,48 +303,24 @@ func (r *Repo) HashedPackages(packs chan HashedPackData) error {
 	return nil
 }
 
-// todo - на горутины с передачей данных через канал. перестроить для повторного использования в execfile
-
 // FilesPackRepo возвращает список файлов указанного пакета в репозитории
-func (r *Repo) FilesPackRepo(pack string) ([]string, error) {
+func (r *Repo) FilesPackRepo(pack string) ([]*FileInfo, error) {
 	path := filepath.Join(r.path, pack) // base Path repopath/packname
-	fList := make([]string, 0, 50)      // reserve place for ~50 files
-	fpCh := make(chan string)           // channel for filepath
+	fList := make([]*FileInfo, 0, 50)   // reserve place for ~50 files
+	fInfoCh := make(chan *FileInfo)     // channel for filepath
 	erCh := make(chan error)            // channel for error
 	//unWanted, _ := regexp.Compile("(.*[Tt]humb[s]?\\.db)|(.*~.*)")
 
-	go utils.DirWalk(path, fpCh, erCh)
-	//go func(root string, fpCh chan<- string, erCh chan<- error) {
-	//	err := filepath.Walk(root, func(fp string, info os.FileInfo, er error) error {
-	//		if er != nil {
-	//			// debug message: er
-	//			return fmt.Errorf("не найден пакет: %q\n", fp)
-	//		}
-	//		if info.IsDir() { // skip directory
-	//			return nil
-	//		} else if unWanted.MatchString(fp) { // skip unwanted file
-	//			//fmt.Println("skip unwanted:", fp) // todo add to log.debug
-	//			return nil
-	//		}
-	//		fp, _ = filepath.Rel(path, fp) // trim base Path repopath/packname
-	//		fpCh <- fp
-	//		return nil
-	//	})
-	//	if err != nil {
-	//		erCh <- err
-	//		return
-	//	}
-	//	close(fpCh)
-	//}(path, fpCh, erCh)
-	// ---
+	go DirWalk(path, fInfoCh, erCh)
+
 	for {
 		select {
 		case err := <-erCh:
 			return nil, err
-		case fp, ok := <-fpCh:
+		case fInfo, more := <-fInfoCh:
 			//if ok && !unWanted.MatchString(fp) {
-			if ok {
-				fList = append(fList, fp)
+			if more {
+				fList = append(fList, fInfo)
 			} else {
 				return fList, nil
 			}
@@ -353,11 +329,11 @@ func (r *Repo) FilesPackRepo(pack string) ([]string, error) {
 }
 
 // FilesPackDBCount возвращает количество проиндексированных файлов в пакете
-func (r *Repo) FilesPackDBCount(packID int64) (int64, error) {
-	var cnt int64
-	err := r.db.QueryRow("SELECT COUNT(*) FROM FILES WHERE package_id=?;", packID).Scan(&cnt)
-	return cnt, err
-}
+// func (r *Repo) FilesPackDBCount(packID int64) (int64, error) {
+// 	var cnt int64
+// 	err := r.db.QueryRow("SELECT COUNT(*) FROM FILES WHERE package_id=?;", packID).Scan(&cnt)
+// 	return cnt, err
+// }
 
 // FilesPackDB возвращвет список файлов пакета имеющихся в БД
 func (r *Repo) FilesPackDB(id int64) ([]*FileInfo, error) {
@@ -409,17 +385,8 @@ func (r *Repo) PackIsActive(pack string) bool {
 }
 
 //...
-func (r *Repo) AddFile(id int64, pack string, fPath string) error { // todo run in go
-	fp := filepath.Join(r.path, pack, fPath)
-	fInfo, err := os.Stat(fp)
-	if err != nil {
-		return err
-	}
-	hash, err := utils.HashSumFile(fp)
-	if err != nil {
-		return err
-	}
-	if res, err := r.stmtAddFile.Exec(id, fPath, fInfo.Size(), fInfo.ModTime().UnixNano(), hash); err != nil {
+func (r *Repo) AddFile(fInfo *FileInfo) error {
+	if res, err := r.stmtAddFile.Exec(fInfo.ID, fInfo.Path, fInfo.Size, fInfo.MDate, fInfo.Hash); err != nil {
 		return fmt.Errorf(":stmtAddFile: %v", err)
 	} else {
 		if ret, _ := res.RowsAffected(); ret == 0 {
@@ -431,7 +398,6 @@ func (r *Repo) AddFile(id int64, pack string, fPath string) error { // todo run 
 
 //..
 func (r *Repo) UpdateFileData(fd *FileInfo) error {
-	// if res, err := r.stmtUpdFile.Exec(fInfo.Size(), fInfo.ModTime().UnixNano(), hash, dbData.ID); err != nil {
 	if res, err := r.stmtUpdFile.Exec(fd.Size, fd.MDate, fd.Hash, fd.ID); err != nil {
 		return fmt.Errorf("stmtUpdFile error: %v", err)
 	} else if ret, _ := res.RowsAffected(); ret == 0 {
@@ -441,8 +407,8 @@ func (r *Repo) UpdateFileData(fd *FileInfo) error {
 }
 
 //...
-func (r *Repo) RemoveFile(id int64) error {
-	if res, err := r.stmtDelFile.Exec(id); err != nil {
+func (r *Repo) RemoveFile(fInfo *FileInfo) error {
+	if res, err := r.stmtDelFile.Exec(fInfo.ID); err != nil {
 		return fmt.Errorf(":stmtDelFile: %v", err)
 	} else {
 		if ret, _ := res.RowsAffected(); ret == 0 {

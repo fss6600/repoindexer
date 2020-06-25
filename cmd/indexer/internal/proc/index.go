@@ -2,7 +2,6 @@ package proc
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"sort"
 
@@ -10,11 +9,15 @@ import (
 	"github.com/pmshoot/repoindexer/cmd/indexer/internal/utils"
 )
 
+const (
+	errIndexMsg   = errMsg + ":index:"
+	errPackIndMsg = errIndexMsg + ":processPackIndex:"
+)
+
 // Index обработка и индексация пакетов в репозитории
 func Index(r *obj.Repo, fullmode bool, packs []string) {
 	err = r.CheckDBVersion()
 	utils.CheckError("", &err)
-	const errIndexMsg = errMsg + ":index:"
 	var changed bool
 
 	CheckRegl(r.Path())
@@ -51,17 +54,14 @@ func Index(r *obj.Repo, fullmode bool, packs []string) {
 
 // processPackIndex обрабатывает (индексирует) файлы в указанном пакете
 func processPackIndex(r *obj.Repo, fullmode bool, pack string) bool {
-	const errPackIndMsg = errMsg + ":index::processPackIndex:"
 	var (
 		packID                   int64           // ID пакета
-		fsPath                   string          // file path on fs
-		fsList                   []string        // список файлов пакета в репозитории
-		dbData                   *obj.FileInfo   // db file object
-		pFileInfo                *obj.FileInfo   //
-		dbList                   []*obj.FileInfo // список файлов пакета в БД
+		dbData, fInfo            *obj.FileInfo   //
+		fsList, dbList           []*obj.FileInfo // список файлов пакета в БД
 		fsInd, dbInd             int             //  counters
 		packChanged, fileChanged bool            // package has changes
 		err                      error
+		fpRel                    string
 	)
 
 	packID, err = r.GetPackageID(pack)
@@ -70,7 +70,6 @@ func processPackIndex(r *obj.Repo, fullmode bool, pack string) bool {
 		utils.CheckError(fmt.Sprintf("%v:%v:", errPackIndMsg, "NewPackage"), &err)
 	}
 
-	pFileInfo = new(obj.FileInfo)
 	fsList, err = r.FilesPackRepo(pack)
 	utils.CheckError("", &err)
 
@@ -78,73 +77,75 @@ func processPackIndex(r *obj.Repo, fullmode bool, pack string) bool {
 	utils.CheckError(fmt.Sprintf("%v:%v:", errPackIndMsg, "FilesPackDB"), &err)
 
 	fsMaxInd := len(fsList) - 1
-	// fDBCount, err := r.FilesPackDBCount(packID)
-	// utils.CheckError(fmt.Sprintf("%v:%v:", errPackIndMsg, "get files count from DB"), &err)
 	dbMaxInd := len(dbList) - 1
-	sort.Slice(fsList, func(i, j int) bool { return fsList[i] < fsList[j] })
-	// sort.Slice(dbList, func(i, j int) bool { return dbList[i].Path < dbList[j].Path })
+	// fsListNotEmpty := fsMaxInd >= 0
+	// dbListNotEmpty := dbMaxInd >= 0
+
+	sort.Slice(fsList, func(i, j int) bool { return fsList[i].Path < fsList[j].Path })
 
 	for {
 		// завершили обход списков
 		if fsInd > fsMaxInd && dbInd > dbMaxInd { // end both lists
 			break
 		}
-		// no in BD: add file to BD
+
+		// Вариант1: Новый пакет или пакет удален
+		// пакета нет в БД: add file to BD
 		if dbInd > dbMaxInd {
 			// добавляем запись о файле в БД
-			fsPath = fsList[fsInd]
-			err = r.AddFile(packID, pack, fsPath)
+			fInfo = fsList[fsInd]
+			fpRel, _ = filepath.Rel(filepath.Join(r.Path(), pack), fInfo.Path)
+
+			fInfo.ID = packID
+			fInfo.Hash = getFileHash(fInfo.Path)
+			fInfo.Path = fpRel
+
+			err = r.AddFile(fInfo)
 			utils.CheckError(fmt.Sprintf("%v", errPackIndMsg), &err)
-			fmt.Println("  +", fsPath)
-			//next path in FS list
+
+			fmt.Println("  +", fInfo.Path)
 			fsInd++
 			if !packChanged {
 				packChanged = true
 			}
+			//next path in FS list
 			continue
 		}
-		// удаляем запись о файле из БД
+
+		// пакета нет в репо - удаляем запись о файле из БД
 		if fsInd > fsMaxInd { // not in FS
 			dbData = dbList[dbInd]
-			err = r.RemoveFile(dbData.ID)
+			err = r.RemoveFile(dbData)
 			utils.CheckError(fmt.Sprintf("%v:error compare files", errPackIndMsg), &err)
 			fmt.Println("  -", dbData.Path)
 			// next file obj in db list
 			dbInd++
+			if !packChanged {
+				packChanged = true
+			}
+			//next path in DB list
 			continue
 		}
 
-		fsPath = fsList[fsInd]
 		dbData = dbList[dbInd]
+		fInfo = fsList[fsInd]
+		fpRel, _ = filepath.Rel(filepath.Join(r.Path(), pack), fInfo.Path)
 
+		// Вариант2: Данные пакета изменились
 		// сверка данных о файле в БД и в репозитории
 		// in FS, in db
-		if fsPath == dbData.Path {
-			fp := filepath.Join(r.Path(), pack, fsPath)
-
-			fInfo, err := os.Stat(fp)
-			if err != nil {
-				utils.CheckError(fmt.Sprintf("%v:error stat files", errPackIndMsg), &err)
-			}
-
-			fileChanged = !(fInfo.Size() == dbData.Size && fInfo.ModTime().UnixNano() == dbData.MDate)
+		if fpRel == dbData.Path {
+			fileChanged = !(fInfo.Size == dbData.Size && fInfo.MDate == dbData.MDate)
 
 			if fullmode || fileChanged {
-				hash, err := utils.HashSumFile(fp)
-				if err != nil {
-					utils.CheckError(fmt.Sprintf("%v:error hashsum calculate", errPackIndMsg), &err)
-				}
+				dbData.Size = fInfo.Size
+				dbData.MDate = fInfo.MDate
+				dbData.Hash = getFileHash(fInfo.Path)
 
-				pFileInfo.ID = dbData.ID
-				pFileInfo.Path = fp
-				pFileInfo.Size = fInfo.Size()
-				pFileInfo.MDate = fInfo.ModTime().UnixNano()
-				pFileInfo.Hash = hash
-
-				err = r.UpdateFileData(pFileInfo)
+				err = r.UpdateFileData(dbData)
 				utils.CheckError(fmt.Sprintf("%v:error update file data in DB", errPackIndMsg), &err)
 
-				fmt.Println("  .", dbData.Path)
+				fmt.Println("  .", fpRel)
 
 				if !packChanged {
 					packChanged = true
@@ -152,22 +153,28 @@ func processPackIndex(r *obj.Repo, fullmode bool, pack string) bool {
 			}
 			fsInd++
 			dbInd++
+
 			// in FS, not in db: add file to BD
-		} else if fsPath < dbData.Path {
+		} else if fpRel < dbData.Path {
 			// добавляем запись о файле в БД
-			err = r.AddFile(packID, pack, fsPath)
+			fInfo.ID = packID
+			fInfo.Hash = getFileHash(fInfo.Path)
+			fInfo.Path = fpRel
+
+			err = r.AddFile(fInfo)
 			utils.CheckError(fmt.Sprintf("%v", errPackIndMsg), &err)
 
-			fmt.Println("  +", fsPath)
+			fmt.Println("  +", fpRel)
 
 			if !packChanged {
 				packChanged = true
 			}
 			fsInd++
+
 			// удаляем запись о файле из БД
 			// not in FS, in db
-		} else if fsPath > dbData.Path {
-			err = r.RemoveFile(dbData.ID)
+		} else if fpRel > dbData.Path {
+			err = r.RemoveFile(dbData)
 			utils.CheckError(fmt.Sprintf("%v", errPackIndMsg), &err)
 
 			fmt.Println("  -", dbData.Path)
@@ -188,4 +195,10 @@ func processPackIndex(r *obj.Repo, fullmode bool, pack string) bool {
 		utils.CheckError(fmt.Sprintf("%v", errPackIndMsg), &err)
 	}
 	return packChanged
+}
+
+func getFileHash(fPath string) string {
+	hash, err := utils.HashSumFile(fPath)
+	utils.CheckError(fmt.Sprintf("%v:error hashsum calculate", errPackIndMsg), &err)
+	return hash
 }

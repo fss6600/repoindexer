@@ -7,8 +7,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"strconv"
-
-	"github.com/pmshoot/repoindexer/cmd/indexer/internal/utils"
 )
 
 const errExecFileMsg = ":ExecFile:"
@@ -16,19 +14,19 @@ const errExecFileMsg = ":ExecFile:"
 // todo использовать r.FilesPackRepo() -
 func searchExecFile(root string, regExp *regexp.Regexp) ([]string, error) {
 	execFilesList := []string{}
-	fpCh := make(chan string) // channel for filepath
-	erCh := make(chan error)  // channel for error
+	fpCh := make(chan *FileInfo) // channel for filepath
+	erCh := make(chan error)     // channel for error
 
-	go utils.DirWalk(root, fpCh, erCh)
+	go DirWalk(root, fpCh, erCh)
 
 	for {
 		select {
 		case err := <-erCh:
 			return nil, err
-		case fp, ok := <-fpCh:
+		case fInfo, ok := <-fpCh:
 			if ok { // канал еще не закрыт
-				if regExp.MatchString(fp) {
-					execFilesList = append(execFilesList, fp)
+				if regExp.MatchString(fInfo.Path) {
+					execFilesList = append(execFilesList, fInfo.Path)
 				}
 			} else {
 				return execFilesList, nil
@@ -88,4 +86,29 @@ func ShowEmptyExecFiles(r *Repo) {
 		}
 		fmt.Println("\tЗапустите программу с командой 'exec check'")
 	}
+}
+
+// DirWalk Рекурсивно обходит указанную папку и возвращает имена файлов в указанный канал или ошибки в соответствующий канал
+func DirWalk(root string, fpCh chan<- *FileInfo, erCh chan<- error) {
+	err := filepath.Walk(root, func(fp string, info os.FileInfo, er error) error {
+		if er != nil {
+			return fmt.Errorf("не найден пакет: %q\n", fp)
+		}
+		if info.IsDir() { // skip directory
+			return nil
+		}
+		// fPath, _ := filepath.Rel(root, fp) // trim base Path repopath/packname
+		fInfo := &FileInfo{
+			Path:  fp,
+			Size:  info.Size(),
+			MDate: info.ModTime().UnixNano(),
+		}
+		fpCh <- fInfo
+		return nil
+	})
+	if err != nil {
+		erCh <- err
+		return
+	}
+	close(fpCh)
 }
