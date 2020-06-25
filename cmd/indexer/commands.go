@@ -13,7 +13,7 @@ import (
 )
 
 var repoPath string
-var flagPopIndex, flagDebug, flagVersion bool
+var flagFullIndex, flagPopIndex, flagDebug, flagVersion bool
 
 const tmplErrMsg = "main:"
 
@@ -21,6 +21,7 @@ func init() {
 	// обработка флагов и переменных
 	flag.StringVar(&repoPath, "r", "", "repopath: полный путь к репозиторию")
 	flag.BoolVar(&flagDebug, "d", false, "debug: режим отладки")
+	flag.BoolVar(&flagFullIndex, "f", false, "full: режим принудительной полной индексации")
 	flag.BoolVar(&flagVersion, "v", false, "version: версия программы")
 	flag.Parse()
 }
@@ -83,7 +84,7 @@ func Run() {
 		if len(packs) == 0 {
 			packs = repoPtr.ActivePacks() // активные
 		}
-		proc.Index(repoPtr, packs)
+		proc.Index(repoPtr, flagFullIndex, packs)
 	// выгрузка данных индексации из БД в Index.json[gz]
 	case "pop", "populate":
 		proc.Populate(repoPtr)

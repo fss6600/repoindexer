@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
 	//"regexp"
 	"time"
 
 	"github.com/mattn/go-sqlite3"
-
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/pmshoot/repoindexer/cmd/indexer/internal/utils"
 )
@@ -39,7 +39,7 @@ type Repo struct {
 
 // FileInfo структура с данными о файле пакета в БД
 type FileInfo struct {
-	Id    int64
+	ID    int64
 	Path  string // путь файла относительно корневой папки пакета
 	Size  int64  // размер файла
 	MDate int64  // дата изменения
@@ -55,7 +55,7 @@ func NewRepoObj(path string) (*Repo, error) {
 	return repo, nil
 }
 
-//...
+// SetPath ...
 func (r *Repo) SetPath(path string) error {
 	if path == "" {
 		return fmt.Errorf("не указан путь к репозиторию")
@@ -64,7 +64,7 @@ func (r *Repo) SetPath(path string) error {
 	return nil
 }
 
-//...
+// Path ...
 func (r *Repo) Path() string {
 	return r.path
 }
@@ -114,6 +114,7 @@ func (r *Repo) Close() error {
 	return nil
 }
 
+// Clean ...
 func (r *Repo) Clean() error {
 	if r.db != nil {
 		if _, err = r.db.Exec("VACUUM"); err != nil {
@@ -137,6 +138,7 @@ func (r *Repo) GetPackageID(pack string) (int64, error) {
 	return id, nil
 }
 
+// NewPackage ...
 func (r *Repo) NewPackage(name string) (int64, error) {
 	var id int64
 	res, err := r.db.Exec("INSERT INTO packages ('name', 'hash') VALUES (?, 0);", name)
@@ -153,7 +155,7 @@ func (r *Repo) Alias(pack string) (alias string) {
 	return
 }
 
-// Alias возвращает срез срезов (пар) псевдоним-пакет
+// Aliases возвращает срез срезов (пар) псевдоним-пакет
 func (r *Repo) Aliases() [][]string {
 	var aliases [][]string
 	var alias, name string
@@ -201,7 +203,7 @@ func (r *Repo) DelAlias(alias string) error {
 	return nil
 }
 
-//... IndexedPacks
+// IndexedPacks ...
 func (r *Repo) IndexedPacks() []string { //todo в горутину
 	if len(r.indPacks) == 0 {
 		ch := make(chan string)
@@ -213,7 +215,7 @@ func (r *Repo) IndexedPacks() []string { //todo в горутину
 	return r.indPacks
 }
 
-//... NoIndexedPacks
+// NoIndexedPacks ...
 func (r *Repo) NoIndexedPacks() []string { //todo в горутину
 	lst := make([]string, 0)
 	for _, pack := range r.ActivePacks() {
@@ -243,7 +245,7 @@ func (r *Repo) ActivePacks() []string { //todo в горутину
 // DisabledPacks кэширует и возвращает список заблокированных пакетов репозитория
 func (r *Repo) DisabledPacks() []string { //todo в горутину
 	if len(r.disPacks) == 0 {
-		rows, err := r.db.Query("SELECT Name FROM excludes;")
+		rows, err := r.db.Query("SELECT name FROM excludes;")
 		if err != nil {
 			panic(fmt.Errorf("error select disabled packs: %v", err))
 		}
@@ -257,8 +259,9 @@ func (r *Repo) DisabledPacks() []string { //todo в горутину
 	return r.disPacks
 }
 
+// HashedPackData ...
 type HashedPackData struct {
-	Id    int64             `json:"-"`
+	ID    int64             `json:"-"`
 	Name  string            `json:"-"`
 	Alias string            `json:"alias"`
 	Hash  string            `json:"phash"`
@@ -266,11 +269,11 @@ type HashedPackData struct {
 	Files map[string]string `json:"files"`
 }
 
-//...
+// HashedPackages ...
 func (r *Repo) HashedPackages(packs chan HashedPackData) error {
-	rows, err := r.db.Query("SELECT id, name, hash, exec FROM packages ORDER BY Name;")
+	defer close(packs)
+	rows, err := r.db.Query("SELECT id, name, hash, exec FROM packages ORDER BY name;")
 	if err == sql.ErrNoRows {
-		close(packs)
 		return nil
 	} else if err != nil {
 		return fmt.Errorf("HashedPackages: %v", err)
@@ -278,27 +281,30 @@ func (r *Repo) HashedPackages(packs chan HashedPackData) error {
 	defer rows.Close()
 
 	var pData HashedPackData
+	var filesPackDB []*FileInfo
+
 	for rows.Next() {
-		if err = rows.Scan(&pData.Id, &pData.Name, &pData.Hash, &pData.Exec); err != nil {
+		if err = rows.Scan(&pData.ID, &pData.Name, &pData.Hash, &pData.Exec); err != nil {
 			return fmt.Errorf("HashedPackages: %v", err)
 		}
 		pData.Alias = r.Alias(pData.Name)
 
-		f := map[string]string{}
-		fList, _ := r.FilesPackDB(pData.Id)
-
-		for _, fd := range fList {
-			f[fd.Path] = fd.Hash
+		if filesPackDB, err = r.FilesPackDB(pData.ID); err != nil {
+			return err
 		}
-		pData.Files = f
+		files := map[string]string{}
 
+		for _, fd := range filesPackDB {
+			files[fd.Path] = fd.Hash
+		}
+		pData.Files = files
 		packs <- pData
 	}
-	close(packs)
 	return nil
 }
 
 // todo - на горутины с передачей данных через канал. перестроить для повторного использования в execfile
+
 // FilesPackRepo возвращает список файлов указанного пакета в репозитории
 func (r *Repo) FilesPackRepo(pack string) ([]string, error) {
 	path := filepath.Join(r.path, pack) // base Path repopath/packname
@@ -346,33 +352,33 @@ func (r *Repo) FilesPackRepo(pack string) ([]string, error) {
 	}
 }
 
-// FilesPackDB возвращвет список файлов пакета имеющихся в БД
-func (r *Repo) FilesPackDB(id int64) ([]FileInfo, error) { // todo - на горутины с передачей данных через канал
-	cnt := 0
-	if err := r.db.QueryRow("SELECT COUNT(*) FROM FILES WHERE package_id=?;", id).Scan(&cnt); err != nil {
-		return nil, err
-	}
-	if cnt == 0 {
-		return []FileInfo{}, nil
-	}
+// FilesPackDBCount возвращает количество проиндексированных файлов в пакете
+func (r *Repo) FilesPackDBCount(packID int64) (int64, error) {
+	var cnt int64
+	err := r.db.QueryRow("SELECT COUNT(*) FROM FILES WHERE package_id=?;", packID).Scan(&cnt)
+	return cnt, err
+}
 
-	rows, err := r.db.Query("SELECT id, path, size, mdate, hash FROM files WHERE package_id=?;", id)
+// FilesPackDB возвращвет список файлов пакета имеющихся в БД
+func (r *Repo) FilesPackDB(id int64) ([]*FileInfo, error) {
+	rows, err := r.db.Query("SELECT id, path, size, mdate, hash FROM files WHERE package_id=? ORDER BY path;", id)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
+	var pFileInfoList []*FileInfo
 
-	fdataList := make([]FileInfo, 0)
 	for rows.Next() {
 		fd := new(FileInfo)
-		if err := rows.Scan(&fd.Id, &fd.Path, &fd.Size, &fd.MDate, &fd.Hash); err != nil {
+		if err := rows.Scan(&fd.ID, &fd.Path, &fd.Size, &fd.MDate, &fd.Hash); err != nil {
 			return nil, err
 		}
-		fdataList = append(fdataList, *fd)
+		pFileInfoList = append(pFileInfoList, fd)
 	}
-	return fdataList, nil
+	return pFileInfoList, nil
 }
 
+// PackIsIndexed ...
 func (r *Repo) PackIsIndexed(name string) bool {
 	for _, fn := range r.IndexedPacks() {
 		if name == fn {
@@ -424,28 +430,14 @@ func (r *Repo) AddFile(id int64, pack string, fPath string) error { // todo run 
 }
 
 //..
-func (r *Repo) ChangedFile(pack, fsPath string, dbData FileInfo) (bool, error) {
-	fp := filepath.Join(r.path, pack, fsPath)
-	fInfo, err := os.Stat(fp)
-	if err != nil {
-		return false, err
+func (r *Repo) UpdateFileData(fd *FileInfo) error {
+	// if res, err := r.stmtUpdFile.Exec(fInfo.Size(), fInfo.ModTime().UnixNano(), hash, dbData.ID); err != nil {
+	if res, err := r.stmtUpdFile.Exec(fd.Size, fd.MDate, fd.Hash, fd.ID); err != nil {
+		return fmt.Errorf("stmtUpdFile error: %v", err)
+	} else if ret, _ := res.RowsAffected(); ret == 0 {
+		return fmt.Errorf("stmtUpdFile error: no rows affected in fact")
 	}
-	if fInfo.Size() == dbData.Size && fInfo.ModTime().UnixNano() == dbData.MDate {
-		return false, nil
-	}
-
-	hash, err := utils.HashSumFile(fp)
-	if err != nil {
-		return false, err
-	}
-	if res, err := r.stmtUpdFile.Exec(fInfo.Size(), fInfo.ModTime().UnixNano(), hash, dbData.Id); err != nil {
-		return false, fmt.Errorf("stmtUpdFile error: %v", err)
-	} else {
-		if ret, _ := res.RowsAffected(); ret == 0 {
-			return false, fmt.Errorf("stmtUpdFile error: no rows affected in fact")
-		}
-		return true, nil
-	}
+	return nil
 }
 
 //...
