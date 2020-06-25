@@ -1,0 +1,11 @@
+#!/bin/bash
+clear
+
+env GOARCH=386
+env CGO_ENABLED=1
+env CGO_CFLAGS='-g -O2 -m32'
+env CGO_LDFLAGS='-g -O2 -w -s'
+
+go build -x -o bin/indexer ./cmd/indexer
+
+#upx -6 bin/indexer
