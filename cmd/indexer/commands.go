@@ -16,7 +16,9 @@ import (
 )
 
 var repoPath string
-var flagFullIndex, flagPopIndex, flagDebug, flagVersion bool
+var flagFullIndex, flagDebug, flagVersion bool
+
+// var flagFullIndex, flagPopIndex, flagDebug, flagVersion, flagHelp bool
 
 const tmplErrMsg = "main:"
 
@@ -30,19 +32,26 @@ func init() {
 		rp = cnf.Repo
 	}
 	// обработка флагов и переменных
-	flag.StringVar(&repoPath, "r", rp, "repopath: полный путь к репозиторию")
-	fmt.Println("установлен путь к репозиторию:", repoPath)
-	flag.BoolVar(&flagDebug, "d", false, "debug: режим отладки")
-	flag.BoolVar(&flagFullIndex, "f", false, "full: режим принудительной полной индексации")
-	flag.BoolVar(&flagVersion, "v", false, "version: версия программы")
+	flag.StringVar(&repoPath, "r", rp, "*полный путь к репозиторию")
+	flag.BoolVar(&flagDebug, "d", false, "режим отладки")
+	flag.BoolVar(&flagFullIndex, "f", false, "режим принудительной полной индексации")
+	flag.BoolVar(&flagVersion, "v", false, "версия программы")
+	flag.Usage = Usage
+
 	flag.Parse()
 }
 
 func Run() {
 	if flagVersion {
 		fmt.Printf("Версия программы\t: %v\n", version)
+		// flag.PrintDefaults()
 		return
 	}
+
+	// if flagHelp {
+	// 	fmt.Printf("Версия программы\t: %v\n", version)
+	// 	return
+	// }
 
 	// проверка на наличие пути к репозиторию
 	if repoPath == "" {
@@ -56,6 +65,8 @@ func Run() {
 	}
 	cmd := flag.Args()[0]
 
+	fmt.Println("установлен путь к репозиторию:", repoPath)
+
 	// обработка команд, не требующих подключения к БД
 	switch cmd {
 	// инициализация репозитория
@@ -63,7 +74,7 @@ func Run() {
 		err := obj.InitDB(repoPath)
 		utils.CheckError(fmt.Sprintf("ошибка при инициализации репозитория '%v':", repoPath), &err)
 		return // выходим, чтобы не инициализировать подключение к БД
-	// on|off режим регламента
+		// on|off режим регламента
 	case "regl", "reglament":
 		var mode string
 		cmdRegl := newFlagSet("reglament")
