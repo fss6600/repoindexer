@@ -147,6 +147,7 @@ func Run() {
 		var cmd string
 		var aliases []string
 		cmdAlias := newFlagSet("alias")
+
 		if len(cmdAlias.Args()) == 0 {
 			cmd = "show"
 			aliases = nil
@@ -156,19 +157,20 @@ func Run() {
 			if len(aliases) == 0 {
 				// from stdin
 				aliases = readDataFromStdin()
-			} else {
-				panic("укажите по крайней мере 1 пару ПАКЕТ=ПСЕВДОНИМ")
+				if len(aliases) == 0 {
+					panic("укажите по крайней мере 1 пару ПАКЕТ=ПСЕВДОНИМ")
+				}
 			}
 		}
 		proc.Alias(repoPtr, cmd, aliases)
 	// вывод перечня и статус пакетов в репозитории
 	case "list":
 		var cmd string
-		cmdAlias := newFlagSet("list")
-		if len(cmdAlias.Args()) == 0 {
+		cmdList := newFlagSet("list")
+		if len(cmdList.Args()) == 0 {
 			cmd = "all"
 		} else {
-			cmd = cmdAlias.Args()[0]
+			cmd = cmdList.Args()[0]
 		}
 		proc.List(repoPtr, cmd)
 	// упаковка и переиндексация данных в БД
@@ -180,15 +182,13 @@ func Run() {
 	// очистка БД от данных
 	case "cleardb":
 		// todo добавить подтверждение
-		if !utils.UserAccept("Данная операция удаляет данные из БД") {
-			return
-		}
+
 		var cmd string
-		cmdAlias := newFlagSet("cleardb")
-		if len(cmdAlias.Args()) == 0 {
+		cmdClearDB := newFlagSet("cleardb")
+		if len(cmdClearDB.Args()) == 0 {
 			cmd = ""
 		} else {
-			cmd = cmdAlias.Args()[0]
+			cmd = cmdClearDB.Args()[0]
 		}
 		proc.ClearDB(repoPtr, cmd)
 	// вывод информации о репозитории

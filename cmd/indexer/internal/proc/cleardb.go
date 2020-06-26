@@ -9,8 +9,17 @@ import (
 
 func ClearDB(r *obj.Repo, cmd string) {
 	const errClrDBMsg = errMsg + ":Cleardb:"
+	var msg string
+	if cmd == "all" {
+		msg = "Удаляются все данные репозитория из БД"
+	} else {
+		msg = "Удаляются данные индекса из БД"
+	}
 	switch cmd {
 	case "index", "all":
+		if !utils.UserAccept(msg) {
+			return
+		}
 		fmt.Print("Очистка данных индексации пакетов...")
 		err = r.DBCleanPackages()
 		utils.CheckError(fmt.Sprintf("\n%v:index:", errClrDBMsg), &err)
@@ -20,6 +29,9 @@ func ClearDB(r *obj.Repo, cmd string) {
 		}
 		fallthrough
 	case "alias":
+		if cmd != "all" && !utils.UserAccept("Удаляются данные псевдонимов из БД") {
+			return
+		}
 		fmt.Print("Очистка данных псевдонимов...")
 		err = r.DBCleanAliases()
 		utils.CheckError(fmt.Sprintf("\n%v:alias:", errClrDBMsg), &err)
@@ -29,6 +41,9 @@ func ClearDB(r *obj.Repo, cmd string) {
 		}
 		fallthrough
 	case "status":
+		if cmd != "all" && !utils.UserAccept("Удаляются данные блокирововк из БД") {
+			return
+		}
 		fmt.Print("Очистка данных блокировки...")
 		err = r.DBCleanStatus()
 		utils.CheckError(fmt.Sprintf("\n%v:status:", errClrDBMsg), &err)
