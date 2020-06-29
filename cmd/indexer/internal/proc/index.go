@@ -3,7 +3,6 @@ package proc
 import (
 	"fmt"
 	"path/filepath"
-	"sort"
 
 	"github.com/pmshoot/repoindexer/cmd/indexer/internal/obj"
 	"github.com/pmshoot/repoindexer/cmd/indexer/internal/utils"
@@ -70,18 +69,12 @@ func processPackIndex(r *obj.Repo, fullmode bool, pack string) bool {
 		utils.CheckError(fmt.Sprintf("%v:%v:", errPackIndMsg, "NewPackage"), &err)
 	}
 
-	fsList, err = r.FilesPackRepo(pack)
-	utils.CheckError("", &err)
-
+	fsList = r.FilesPackRepo(pack)
 	dbList, err = r.FilesPackDB(packID)
 	utils.CheckError(fmt.Sprintf("%v:%v:", errPackIndMsg, "FilesPackDB"), &err)
 
 	fsMaxInd := len(fsList) - 1
 	dbMaxInd := len(dbList) - 1
-	// fsListNotEmpty := fsMaxInd >= 0
-	// dbListNotEmpty := dbMaxInd >= 0
-
-	sort.Slice(fsList, func(i, j int) bool { return fsList[i].Path < fsList[j].Path })
 
 	for {
 		// завершили обход списков

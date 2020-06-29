@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 
 	"time"
 
@@ -274,28 +275,23 @@ func (r *Repo) HashedPackages(packs chan HashedPackData) error {
 }
 
 // FilesPackRepo возвращает список файлов указанного пакета в репозитории
-func (r *Repo) FilesPackRepo(pack string) ([]*FileInfo, error) {
-	path := filepath.Join(r.path, pack) // base Path repopath/packname
-	fList := make([]*FileInfo, 0, 50)   // reserve place for ~50 files
-	fInfoCh := make(chan *FileInfo)     // channel for filepath
-	erCh := make(chan error)            // channel for error
+func (r *Repo) FilesPackRepo(pack string) []*FileInfo {
+	path := filepath.Join(r.path, pack)   // base Path repopath/packname
+	fInfoList := make([]*FileInfo, 0, 50) // reserve place for ~50 files
 	// unWanted, _ := regexp.Compile(`(.*[Tt]humb[s]?\.db)|(^~.*)`)
+	fInfoCh := dirWalk(path)
+	for fInfo := range fInfoCh {
+		fi := new(FileInfo)
+		*fi = fInfo
 
-	go dirWalk(path, fInfoCh, erCh)
-
-	for {
-		select {
-		case err := <-erCh:
-			return nil, err
-		case fInfo, more := <-fInfoCh:
-			//if ok && !unWanted.MatchString(fp) {
-			if more {
-				fList = append(fList, fInfo)
-			} else {
-				return fList, nil
-			}
-		}
+		// if unWanted.MatchString(fp) {
+		// continue
+		// } else {
+		fInfoList = append(fInfoList, fi)
+		// }
 	}
+	sort.Slice(fInfoList, func(i, j int) bool { return fInfoList[i].Path < fInfoList[j].Path })
+	return fInfoList
 }
 
 // FilesPackDB возвращвет список файлов пакета имеющихся в БД

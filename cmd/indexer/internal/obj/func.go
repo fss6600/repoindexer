@@ -9,30 +9,14 @@ import (
 	"strconv"
 )
 
-const errExecFileMsg = ":ExecFile:"
-
-// todo использовать r.FilesPackRepo() -
-func searchExecFile(root string, regExp *regexp.Regexp) ([]string, error) {
+func searchExecFile(root string, regExp *regexp.Regexp) []string {
 	execFilesList := []string{}
-	fpCh := make(chan *FileInfo) // channel for filepath
-	erCh := make(chan error)     // channel for error
-
-	go dirWalk(root, fpCh, erCh)
-
-	for {
-		select {
-		case err := <-erCh:
-			return nil, err
-		case fInfo, ok := <-fpCh:
-			if ok { // канал еще не закрыт
-				if regExp.MatchString(fInfo.Path) {
-					execFilesList = append(execFilesList, fInfo.Path)
-				}
-			} else {
-				return execFilesList, nil
-			}
+	for fInfo := range dirWalk(root) {
+		if regExp.MatchString(fInfo.Path) {
+			execFilesList = append(execFilesList, fInfo.Path)
 		}
 	}
+	return execFilesList
 }
 
 func selectExecFileByUser(fList []string) string {
@@ -59,10 +43,7 @@ func defineExecFile(r *Repo, pack string) string {
 	)
 	packRoot := filepath.Join(r.Path(), pack)
 	execRegEx, _ := regexp.Compile(`^.+\.exe$`)
-
-	if execFilesList, err = searchExecFile(packRoot, execRegEx); err != nil {
-		panic(fmt.Errorf("%v:%v:%v", errExecFileMsg, "set", err))
-	}
+	execFilesList = searchExecFile(packRoot, execRegEx)
 
 	switch len(execFilesList) {
 	case 0:
@@ -73,7 +54,6 @@ func defineExecFile(r *Repo, pack string) string {
 		fmt.Printf("Выберите исполняемый файл для пакета '%v'\n", pack)
 		execFile = selectExecFileByUser(execFilesList)
 	}
-
 	return execFile
 }
 
@@ -89,27 +69,56 @@ func ShowEmptyExecFiles(r *Repo) {
 	}
 }
 
-// dirWalk Рекурсивно обходит указанную папку и возвращает имена файлов в указанный канал или ошибки в соответствующий канал
-func dirWalk(root string, fpCh chan<- *FileInfo, erCh chan<- error) {
-	err := filepath.Walk(root, func(fp string, info os.FileInfo, er error) error {
-		if er != nil {
-			return fmt.Errorf("не найден пакет: %q\n", fp)
-		}
-		if info.IsDir() { // skip directory
+// dirWalk Рекурсивно обходит указанную папку и возвращает канал
+// с данными о файлах
+func dirWalk(root string) chan FileInfo {
+	fInfoCh := make(chan FileInfo)
+	fInfo := FileInfo{}
+
+	go func() {
+		err := filepath.Walk(root, func(fp string, info os.FileInfo, er error) error {
+			if er != nil {
+				return fmt.Errorf("не найден пакет: %q\n", fp)
+			}
+			if info.IsDir() { // skip directory
+				return nil
+			}
+			// fPath, _ := filepath.Rel(root, fp) // trim base Path repopath/packname
+			fInfo.Path = fp
+			fInfo.Size = info.Size()
+			fInfo.MDate = info.ModTime().UnixNano()
+			fInfoCh <- fInfo
 			return nil
+		})
+		if err != nil {
+			panic(fmt.Errorf("dirWalk: %v", err))
 		}
-		// fPath, _ := filepath.Rel(root, fp) // trim base Path repopath/packname
-		fInfo := &FileInfo{
-			Path:  fp,
-			Size:  info.Size(),
-			MDate: info.ModTime().UnixNano(),
-		}
-		fpCh <- fInfo
-		return nil
-	})
-	if err != nil {
-		erCh <- err
-		return
-	}
-	close(fpCh)
+		close(fInfoCh)
+	}()
+
+	return fInfoCh
 }
+
+// func dirWalk(root string, fpCh chan<- *FileInfo, erCh chan<- error) {
+// 	err := filepath.Walk(root, func(fp string, info os.FileInfo, er error) error {
+// 		if er != nil {
+// 			return fmt.Errorf("не найден пакет: %q\n", fp)
+// 		}
+// 		if info.IsDir() { // skip directory
+// 			return nil
+// 		}
+// 		// fPath, _ := filepath.Rel(root, fp) // trim base Path repopath/packname
+// 		fInfo := &FileInfo{
+// 			Path:  fp,
+// 			Size:  info.Size(),
+// 			MDate: info.ModTime().UnixNano(),
+// 		}
+// 		fpCh <- fInfo
+// 		return nil
+// 	})
+// 	if err != nil {
+// 		erCh <- err
+// 		return
+// 	}
+// 	close(fpCh)
+// }
