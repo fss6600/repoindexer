@@ -15,36 +15,19 @@ import (
 )
 
 const (
-	fileDBName     string = "index.db"
-	IndexGZ        string = "index.gz"
-	DBVersionMajor int64  = 1
-	DBVersionMinor int64  = 4
+	fileDBName string = "index.db"
+	// IndexGZ индекс-файл
+	IndexGZ string = "index.gz"
+	// DBVersionMajor major ver DB
+	DBVersionMajor int64 = 1 // DBVersionMajor major ver DB
+	// DBVersionMinor minor ver DB
+	DBVersionMinor int64 = 4
 )
 
 var err error
 
+// ErrAlias ошибка обработки псевдонима
 type ErrAlias error
-
-// Repo объект репозитория с БД
-type Repo struct {
-	path        string
-	db          *sql.DB
-	disPacks    []string  // список заблокированных пакетов
-	actPacks    []string  // список активных (актуальных) пакетов
-	indPacks    []string  // список проиндексированных пакетов
-	stmtAddFile *sql.Stmt // предустановка запроса на добавление данных файла пакета в БД
-	stmtDelFile *sql.Stmt // предустановка запроса на удаление данных файла пакетав БД
-	stmtUpdFile *sql.Stmt // предустановка запроса на изменение данных файла пакета в БД
-}
-
-// FileInfo структура с данными о файле пакета в БД
-type FileInfo struct {
-	ID    int64  // package ID
-	Path  string // путь файла относительно корневой папки пакета
-	Size  int64  // размер файла
-	MDate int64  // дата изменения
-	Hash  string // контрольная сумма
-}
 
 // NewRepoObj возвращает объект Repo
 func NewRepoObj(path string) (*Repo, error) {
@@ -165,7 +148,7 @@ func (r *Repo) Aliases() [][]string {
 // и при наличии актуального пакета
 func (r *Repo) SetAlias(alias []string) error {
 	if !r.PackIsActive(alias[0]) {
-		return ErrAlias(fmt.Errorf("пакет [ %v ] не найден или заблокирован\n", alias[0]))
+		return ErrAlias(fmt.Errorf("пакет [ %v ] не найден или заблокирован", alias[0]))
 	}
 	if res, err := r.db.Exec("INSERT INTO aliases (name, alias) VALUES (?, ?);", alias[0], alias[1]); err != nil {
 		switch err.(type) {
@@ -347,10 +330,8 @@ func (r *Repo) PackIsActive(pack string) bool {
 func (r *Repo) AddFile(fInfo *FileInfo) error {
 	if res, err := r.stmtAddFile.Exec(fInfo.ID, fInfo.Path, fInfo.Size, fInfo.MDate, fInfo.Hash); err != nil {
 		return fmt.Errorf(":stmtAddFile: %v", err)
-	} else {
-		if ret, _ := res.RowsAffected(); ret == 0 {
-			return fmt.Errorf(":stmtAddFile: no rows added in fact")
-		}
+	} else if ret, _ := res.RowsAffected(); ret == 0 {
+		return fmt.Errorf(":stmtAddFile: 0 rows added")
 	}
 	return nil
 }
@@ -360,7 +341,7 @@ func (r *Repo) UpdateFileData(fd *FileInfo) error {
 	if res, err := r.stmtUpdFile.Exec(fd.Size, fd.MDate, fd.Hash, fd.ID); err != nil {
 		return fmt.Errorf("stmtUpdFile error: %v", err)
 	} else if ret, _ := res.RowsAffected(); ret == 0 {
-		return fmt.Errorf("stmtUpdFile error: no rows affected in fact")
+		return fmt.Errorf("stmtUpdFile error: 0 rows affected")
 	}
 	return nil
 }
@@ -369,10 +350,8 @@ func (r *Repo) UpdateFileData(fd *FileInfo) error {
 func (r *Repo) RemoveFile(fInfo *FileInfo) error {
 	if res, err := r.stmtDelFile.Exec(fInfo.ID); err != nil {
 		return fmt.Errorf(":stmtDelFile: %v", err)
-	} else {
-		if ret, _ := res.RowsAffected(); ret == 0 {
-			return fmt.Errorf(":stmtDelFile: no rows added in fact")
-		}
+	} else if ret, _ := res.RowsAffected(); ret == 0 {
+		return fmt.Errorf(":stmtDelFile: no rows added in fact")
 	}
 	return nil
 }
@@ -474,6 +453,7 @@ func (r *Repo) DBCleanStatus() error {
 }
 
 // todo: пересмотреть на расчет суммы частями
+
 // HashSumPack подсчет контрольной суммы пакета по основанию сумм файлов
 func (r *Repo) HashSumPack(id int64) error {
 	var hash, hTotal string
@@ -532,7 +512,7 @@ func (r *Repo) Status() (*RepoStData, error) {
 	ch := make(chan string)
 	go utils.DirList(r.Path(), ch)
 	for range ch {
-		data.TotalCnt += 1
+		data.TotalCnt++
 	}
 
 	// данные БД файла
@@ -581,13 +561,13 @@ func (r *Repo) List(ch chan<- *ListData) {
 		}
 		if r.PackIsBlocked(name) {
 			// блок
-			data.Status = 0
+			data.Status = PackStatusBlocked
 		} else if r.PackIsIndexed(name) {
 			// актл
-			data.Status = 1
+			data.Status = PackStatusActive
 		} else {
 			// !инд
-			data.Status = -1
+			data.Status = PackStatusNotIndexed
 		}
 		ch <- data
 	}
@@ -596,15 +576,15 @@ func (r *Repo) List(ch chan<- *ListData) {
 
 // checkDB проверяет целостность БД
 func (r *Repo) checkDB() error {
-	if rows, err := r.db.Query("PRAGMA integrity_check ;"); err != nil {
+	rows, err := r.db.Query("PRAGMA integrity_check;")
+	if err != nil {
 		return err
-	} else {
-		var res interface{}
-		for rows.Next() {
-			err = rows.Scan(&res)
-			if res != "ok" || err != nil {
-				return fmt.Errorf("ошибка целостности БД; требуется повторная инициализация %v", err)
-			}
+	}
+	var res interface{}
+	for rows.Next() {
+		err = rows.Scan(&res)
+		if res != "ok" || err != nil {
+			return fmt.Errorf("ошибка целостности БД; требуется повторная инициализация %v", err)
 		}
 	}
 	return nil
@@ -658,14 +638,14 @@ func (r *Repo) ExecFileSet(pack string, force bool) error {
 
 	switch force { // force - принудительная замена
 	case false:
-		var exec_db string
+		var execInDB string
 		if err := r.db.QueryRow(
 			"SELECT CASE WHEN exec IS null THEN '' ELSE exec END exec FROM packages WHERE id=?;", id).Scan(
-			&exec_db); err != nil {
+			&execInDB); err != nil {
 			//if err := r.db.QueryRow("SELECT exec FROM packages WHERE id=?;", id).Scan(&exec_db); err != nil {
 			return err
 		}
-		if exec_db != "" {
+		if execInDB != "" {
 			fmt.Printf("\t%v: уже установлен, пропуск\n", pack)
 			return nil
 		}
@@ -703,15 +683,15 @@ func (r *Repo) ExecFileDel(pack string) error {
 func (r *Repo) ExecFileInfo(pack string) (string, error) {
 	id, err := r.PackageID(pack)
 	utils.CheckError(fmt.Sprintf("не найден пакет в БД: %v", pack), &err)
-	var exec_db string
+	var execInDB string
 
 	if err := r.db.QueryRow(
 		"SELECT CASE WHEN exec IS null THEN '' ELSE exec END exec FROM packages WHERE id=?;", id).Scan(
-		&exec_db); err != nil {
+		&execInDB); err != nil {
 		//if err := r.db.QueryRow("SELECT exec FROM packages WHERE id=?;", id).Scan(&exec_db); err != nil {
 		return "", err
 	}
-	return exec_db, nil
+	return execInDB, nil
 }
 
 // CheckEmptyExecFiles проверяет на наличие не установленных исполняемых файлах пакетов в репозитории

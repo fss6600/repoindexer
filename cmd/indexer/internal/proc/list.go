@@ -6,7 +6,7 @@ import (
 	"github.com/pmshoot/repoindexer/cmd/indexer/internal/obj"
 )
 
-// ...
+// List выводит на консоль информацию о статусе пакетов в репозитории
 func List(r *obj.Repo, cmd string) {
 	switch cmd {
 	case "all":
@@ -16,12 +16,12 @@ func List(r *obj.Repo, cmd string) {
 		go r.List(ch)
 		for data := range ch {
 			switch data.Status {
-			case 0:
-				fmt.Printf(tmplListOut, catBlock, data.Name)
-			case 1:
-				fmt.Printf(tmplListOut, catActive, data.Name)
-			case -1:
-				fmt.Printf(tmplListOut, catNoIndexed, data.Name)
+			case obj.PackStatusBlocked:
+				fmt.Printf(tmplListOut, "блок", data.Name)
+			case obj.PackStatusActive:
+				fmt.Printf(tmplListOut, "", data.Name)
+			case obj.PackStatusNotIndexed:
+				fmt.Printf(tmplListOut, "!инд", data.Name)
 			}
 		}
 	case "indexed":

@@ -13,10 +13,7 @@ const (
 
 // list
 const (
-	catBlock     = "блок"
-	catActive    = ""
-	catNoIndexed = "!инд"
-	tmplListOut  = "[%4v] %v\n"
+	tmplListOut = "[%4v] %v\n"
 )
 
 // packages

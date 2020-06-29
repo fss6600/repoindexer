@@ -1,6 +1,16 @@
 package obj
 
-import "time"
+import (
+	"database/sql"
+	"time"
+)
+
+// статусы пакета для выводы информации о репозитории
+const (
+	PackStatusNotIndexed = iota - 1 // не индексирован
+	PackStatusBlocked               // блокирован
+	PackStatusActive                // активный
+)
 
 // HashedPackData структура для репрезентации данных о пакете в БД
 type HashedPackData struct {
@@ -18,10 +28,10 @@ type RepoStData struct {
 	IndexedCnt int       // количество проиндексированных пакетов
 	BlockedCnt int       // количество заблокированных
 	IndexSize  int64     // размер индекс-файла в байтах
-	IndexMDate time.Time // дата изменения индекс-файла
 	DBSize     int64     // размер файла БД в байтах
-	DBMDate    time.Time // дата изменения файла БД
 	HashSize   int64     // размер хэш-файла в байтах
+	IndexMDate time.Time // дата изменения индекс-файла
+	DBMDate    time.Time // дата изменения файла БД
 	HashMDate  time.Time // дата изменения хэш-файла
 }
 
@@ -29,4 +39,25 @@ type RepoStData struct {
 type ListData struct {
 	Status int8
 	Name   string
+}
+
+// Repo объект репозитория с БД
+type Repo struct {
+	path        string
+	disPacks    []string // список заблокированных пакетов
+	actPacks    []string // список активных (актуальных) пакетов
+	indPacks    []string // список проиндексированных пакетов
+	db          *sql.DB
+	stmtAddFile *sql.Stmt // предустановка запроса на добавление данных файла пакета в БД
+	stmtDelFile *sql.Stmt // предустановка запроса на удаление данных файла пакетав БД
+	stmtUpdFile *sql.Stmt // предустановка запроса на изменение данных файла пакета в БД
+}
+
+// FileInfo структура с данными о файле пакета в БД
+type FileInfo struct {
+	ID    int64  // package ID
+	Path  string // путь файла относительно корневой папки пакета
+	Size  int64  // размер файла
+	MDate int64  // дата изменения
+	Hash  string // контрольная сумма
 }

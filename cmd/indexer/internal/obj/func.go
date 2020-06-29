@@ -7,13 +7,17 @@ import (
 	"path/filepath"
 	"regexp"
 	"strconv"
+
+	"github.com/pmshoot/repoindexer/cmd/indexer/internal/utils"
 )
 
 func searchExecFile(root string, regExp *regexp.Regexp) []string {
 	execFilesList := []string{}
 	for fInfo := range dirWalk(root) {
 		if regExp.MatchString(fInfo.Path) {
-			execFilesList = append(execFilesList, fInfo.Path)
+			fp, err := filepath.Rel(root, fInfo.Path)
+			utils.CheckError("obj.searchExecFile:", &err)
+			execFilesList = append(execFilesList, fp)
 		}
 	}
 	return execFilesList
@@ -29,9 +33,9 @@ func selectExecFileByUser(fList []string) string {
 		}
 		scanner.Scan()
 		choice := scanner.Text()
-		choice_int, err := strconv.Atoi(choice)
-		if err == nil && choice_int != 0 && choice_int <= count {
-			return fList[choice_int-1]
+		choiceInt, err := strconv.Atoi(choice)
+		if err == nil && choiceInt != 0 && choiceInt <= count {
+			return fList[choiceInt-1]
 		}
 	}
 }
@@ -78,12 +82,11 @@ func dirWalk(root string) chan FileInfo {
 	go func() {
 		err := filepath.Walk(root, func(fp string, info os.FileInfo, er error) error {
 			if er != nil {
-				return fmt.Errorf("не найден пакет: %q\n", fp)
+				return fmt.Errorf("не найден пакет: %q", filepath.Base(fp))
 			}
 			if info.IsDir() { // skip directory
 				return nil
 			}
-			// fPath, _ := filepath.Rel(root, fp) // trim base Path repopath/packname
 			fInfo.Path = fp
 			fInfo.Size = info.Size()
 			fInfo.MDate = info.ModTime().UnixNano()
@@ -91,34 +94,11 @@ func dirWalk(root string) chan FileInfo {
 			return nil
 		})
 		if err != nil {
-			panic(fmt.Errorf("dirWalk: %v", err))
+			fmt.Println(err)
+			os.Exit(1)
 		}
 		close(fInfoCh)
 	}()
 
 	return fInfoCh
 }
-
-// func dirWalk(root string, fpCh chan<- *FileInfo, erCh chan<- error) {
-// 	err := filepath.Walk(root, func(fp string, info os.FileInfo, er error) error {
-// 		if er != nil {
-// 			return fmt.Errorf("не найден пакет: %q\n", fp)
-// 		}
-// 		if info.IsDir() { // skip directory
-// 			return nil
-// 		}
-// 		// fPath, _ := filepath.Rel(root, fp) // trim base Path repopath/packname
-// 		fInfo := &FileInfo{
-// 			Path:  fp,
-// 			Size:  info.Size(),
-// 			MDate: info.ModTime().UnixNano(),
-// 		}
-// 		fpCh <- fInfo
-// 		return nil
-// 	})
-// 	if err != nil {
-// 		erCh <- err
-// 		return
-// 	}
-// 	close(fpCh)
-// }
