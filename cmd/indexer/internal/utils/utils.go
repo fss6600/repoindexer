@@ -17,10 +17,7 @@ import (
 // проверяет наличие файла на диске
 func FileExists(fp string) bool {
 	_, err := os.Stat(fp)
-	if err == nil {
-		return true
-	}
-	return false
+	return err == nil
 }
 
 // возвращает данные IP,.. инициатора работ в репозитории
@@ -69,7 +66,7 @@ func DirList(fp string, dirs chan<- string) {
 }
 
 func WriteGzip(jsonData []byte, fp string) error {
-	errMsg := fmt.Sprintf(":WriteGzip: %v")
+	errMsg := ":WriteGzip: %v"
 	indexFile, err := os.Create(fp)
 	if err != nil {
 		return fmt.Errorf(errMsg, err)
@@ -88,7 +85,7 @@ func WriteGzip(jsonData []byte, fp string) error {
 }
 
 func WriteGzipHash(fp, hash string) error {
-	errMsg := fmt.Sprintf(":writeGzipHash: %v")
+	errMsg := ":writeGzipHash: %v"
 	indexFileHash, err := os.Create(fp + ".sha1")
 	if err != nil {
 		return fmt.Errorf(errMsg, err)

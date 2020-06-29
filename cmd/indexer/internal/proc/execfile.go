@@ -29,7 +29,7 @@ func ExecFile(r *obj.Repo, cmd string, packs []string) {
 		if packsCount == 0 {
 			packs = r.ActivePacks()
 		}
-		fmt.Println("Проверка (установка) исполняемого файла для пакета:\n")
+		fmt.Print("Проверка (установка) исполняемого файла для пакета:\n\n")
 		for _, pack := range packs {
 
 			err = r.ExecFileSet(pack, force)

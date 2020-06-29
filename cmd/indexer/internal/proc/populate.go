@@ -39,7 +39,7 @@ func Populate(r *obj.Repo) {
 	var jsonData []byte
 	jsonData, _ = json.MarshalIndent(packDataList, "", "  ")
 
-	fp := path.Join(r.Path(), obj.Indexgz)
+	fp := path.Join(r.Path(), obj.IndexGZ)
 
 	// выгрузка данныз из БД в json файл
 	err = utils.WriteGzip(jsonData, fp)

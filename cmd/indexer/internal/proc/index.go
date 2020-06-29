@@ -64,7 +64,7 @@ func processPackIndex(r *obj.Repo, fullmode bool, pack string) bool {
 		fpRel                    string
 	)
 
-	packID, err = r.GetPackageID(pack)
+	packID, err = r.PackageID(pack)
 	if err != nil { // нет такого пакета
 		packID, err = r.NewPackage(pack)
 		utils.CheckError(fmt.Sprintf("%v:%v:", errPackIndMsg, "NewPackage"), &err)

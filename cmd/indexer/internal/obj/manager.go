@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 
-	//"regexp"
 	"time"
 
 	"github.com/mattn/go-sqlite3"
@@ -16,7 +15,7 @@ import (
 
 const (
 	fileDBName     string = "index.db"
-	Indexgz        string = "index.gz"
+	IndexGZ        string = "index.gz"
 	DBVersionMajor int64  = 1
 	DBVersionMinor int64  = 4
 )
@@ -46,32 +45,24 @@ type FileInfo struct {
 	Hash  string // контрольная сумма
 }
 
-// NewRepoObj возвращает объект repoObj
+// NewRepoObj возвращает объект Repo
 func NewRepoObj(path string) (*Repo, error) {
-	repo := new(Repo)
-	if err = repo.setPath(path); err != nil {
-		return nil, err
+	if path == "" {
+		return nil, fmt.Errorf("не указан путь к репозиторию")
 	}
+	repo := new(Repo)
+	repo.path = path
 	return repo, nil
 }
 
-// setPath ...
-func (r *Repo) setPath(path string) error {
-	if path == "" {
-		return fmt.Errorf("не указан путь к репозиторию")
-	}
-	r.path = path
-	return nil
-}
-
-// Path ...
+// Path возвращает путь к репозиторию
 func (r *Repo) Path() string {
 	return r.path
 }
 
 // OpenDB открывает подключение к БД
 func (r *Repo) OpenDB() error {
-	fp := DBPath(r.path)
+	fp := pathDB(r.path)
 	if !utils.FileExists(fp) {
 		return fmt.Errorf("Репозиторий не инициализирован")
 	}
@@ -85,7 +76,7 @@ func (r *Repo) OpenDB() error {
 	}
 	// инициализация поддержки первичных ключей в БД
 	if _, err := r.db.Exec("PRAGMA foreign_keys = ON;"); err != nil {
-		return fmt.Errorf("init PRAGMA failed", err)
+		return fmt.Errorf("init PRAGMA failed: %v", err)
 	}
 	return nil
 }
@@ -104,31 +95,31 @@ func (r *Repo) Close() error {
 	// упаковка данных, переиндексация
 	if r.db != nil {
 		if _, err := r.db.Exec("PRAGMA optimize;"); err != nil {
-			return fmt.Errorf("ошибка оптимизации БД: ", err)
+			return fmt.Errorf("ошибка оптимизации БД: %v", err)
 		}
 		if err = r.db.Close(); err != nil {
-			return fmt.Errorf("ошибка закрытия БД:", err)
+			return fmt.Errorf("ошибка закрытия БД: %v", err)
 		}
 		r.db = nil
 	}
 	return nil
 }
 
-// Clean ...
+// Clean - очистка и реиндекс БД
 func (r *Repo) Clean() error {
 	if r.db != nil {
 		if _, err = r.db.Exec("VACUUM"); err != nil {
-			return fmt.Errorf("ошибка очистки БД: ", err)
+			return fmt.Errorf("ошибка очистки БД: %v", err)
 		}
 		if _, err = r.db.Exec("REINDEX"); err != nil {
-			return fmt.Errorf("ошибка перестройки идекса таблиц БД: ", err)
+			return fmt.Errorf("ошибка перестройки идекса таблиц БД: %v", err)
 		}
 	}
 	return nil
 }
 
-// GetPackageID возвращает ID пакета
-func (r *Repo) GetPackageID(pack string) (int64, error) {
+// PackageID возвращает ID пакета
+func (r *Repo) PackageID(pack string) (int64, error) {
 	var id int64
 	if err = r.db.QueryRow("SELECT id FROM packages WHERE name=?;", pack).Scan(&id); err == sql.ErrNoRows {
 		return 0, err
@@ -138,12 +129,11 @@ func (r *Repo) GetPackageID(pack string) (int64, error) {
 	return id, nil
 }
 
-// NewPackage ...
-func (r *Repo) NewPackage(name string) (int64, error) {
-	var id int64
+// NewPackage создает запись нового пакета и возвращает его ID
+func (r *Repo) NewPackage(name string) (id int64, err error) {
 	res, err := r.db.Exec("INSERT INTO packages ('name', 'hash') VALUES (?, 0);", name)
 	if err != nil {
-		return 0, fmt.Errorf("create pack [ %v ] record in db: %v", name, err)
+		return 0, fmt.Errorf("ошибка создания записи о пакете [ %v ]в БД: %v", name, err)
 	}
 	id, _ = res.LastInsertId()
 	return id, nil
@@ -178,7 +168,7 @@ func (r *Repo) SetAlias(alias []string) error {
 	}
 	if res, err := r.db.Exec("INSERT INTO aliases (name, alias) VALUES (?, ?);", alias[0], alias[1]); err != nil {
 		switch err.(type) {
-		case sqlite3.Error:
+		case *sqlite3.Error:
 			if err.(sqlite3.Error).Code == sqlite3.ErrConstraint {
 				return ErrAlias(fmt.Errorf("Псевдоним [ %v ] или псевдоним для пакета [ %v ] уже заданы", alias[1], alias[0]))
 			}
@@ -203,20 +193,8 @@ func (r *Repo) DelAlias(alias string) error {
 	return nil
 }
 
-// IndexedPacks ...
-func (r *Repo) IndexedPacks() []string { //todo в горутину
-	if len(r.indPacks) == 0 {
-		ch := make(chan string)
-		go r.indexedPack(ch)
-		for name := range ch {
-			r.indPacks = append(r.indPacks, name)
-		}
-	}
-	return r.indPacks
-}
-
-// NoIndexedPacks ...
-func (r *Repo) NoIndexedPacks() []string { //todo в горутину
+// NoIndexedPacks возвращает список не проиндексированных пакетов
+func (r *Repo) NoIndexedPacks() []string {
 	lst := make([]string, 0)
 	for _, pack := range r.ActivePacks() {
 		if !r.PackIsIndexed(pack) {
@@ -226,8 +204,9 @@ func (r *Repo) NoIndexedPacks() []string { //todo в горутину
 	return lst
 }
 
-// ActivePacks кэширует и возвращает список пакетов в репозитории, за исключением заблокированных
-func (r *Repo) ActivePacks() []string { //todo в горутину
+// ActivePacks кэширует и возвращает список пакетов имеющихся в репозитории,
+// за исключением заблокированных
+func (r *Repo) ActivePacks() []string {
 	if len(r.actPacks) == 0 {
 		ch := make(chan string, 3)
 		go utils.DirList(r.Path(), ch)
@@ -243,7 +222,7 @@ func (r *Repo) ActivePacks() []string { //todo в горутину
 }
 
 // DisabledPacks кэширует и возвращает список заблокированных пакетов репозитория
-func (r *Repo) DisabledPacks() []string { //todo в горутину
+func (r *Repo) DisabledPacks() []string {
 	if len(r.disPacks) == 0 {
 		rows, err := r.db.Query("SELECT name FROM excludes;")
 		if err != nil {
@@ -259,17 +238,8 @@ func (r *Repo) DisabledPacks() []string { //todo в горутину
 	return r.disPacks
 }
 
-// HashedPackData ...
-type HashedPackData struct {
-	ID    int64             `json:"-"`
-	Name  string            `json:"-"`
-	Alias string            `json:"alias"`
-	Hash  string            `json:"phash"`
-	Exec  string            `json:"execf"`
-	Files map[string]string `json:"files"`
-}
-
-// HashedPackages ...
+// HashedPackages собирает данные о пакетах в БД в структуру HashedPackData
+// и передает по каналу
 func (r *Repo) HashedPackages(packs chan HashedPackData) error {
 	defer close(packs)
 	rows, err := r.db.Query("SELECT id, name, hash, exec FROM packages ORDER BY name;")
@@ -309,9 +279,9 @@ func (r *Repo) FilesPackRepo(pack string) ([]*FileInfo, error) {
 	fList := make([]*FileInfo, 0, 50)   // reserve place for ~50 files
 	fInfoCh := make(chan *FileInfo)     // channel for filepath
 	erCh := make(chan error)            // channel for error
-	//unWanted, _ := regexp.Compile("(.*[Tt]humb[s]?\\.db)|(.*~.*)")
+	// unWanted, _ := regexp.Compile(`(.*[Tt]humb[s]?\.db)|(^~.*)`)
 
-	go DirWalk(path, fInfoCh, erCh)
+	go dirWalk(path, fInfoCh, erCh)
 
 	for {
 		select {
@@ -327,13 +297,6 @@ func (r *Repo) FilesPackRepo(pack string) ([]*FileInfo, error) {
 		}
 	}
 }
-
-// FilesPackDBCount возвращает количество проиндексированных файлов в пакете
-// func (r *Repo) FilesPackDBCount(packID int64) (int64, error) {
-// 	var cnt int64
-// 	err := r.db.QueryRow("SELECT COUNT(*) FROM FILES WHERE package_id=?;", packID).Scan(&cnt)
-// 	return cnt, err
-// }
 
 // FilesPackDB возвращвет список файлов пакета имеющихся в БД
 func (r *Repo) FilesPackDB(id int64) ([]*FileInfo, error) {
@@ -354,9 +317,9 @@ func (r *Repo) FilesPackDB(id int64) ([]*FileInfo, error) {
 	return pFileInfoList, nil
 }
 
-// PackIsIndexed ...
+// PackIsIndexed определяет проиндексирован ли пакет
 func (r *Repo) PackIsIndexed(name string) bool {
-	for _, fn := range r.IndexedPacks() {
+	for _, fn := range r.Packages() {
 		if name == fn {
 			return true
 		}
@@ -364,7 +327,7 @@ func (r *Repo) PackIsIndexed(name string) bool {
 	return false
 }
 
-//...
+// PackIsBlocked проверка пакета на блокировку
 func (r *Repo) PackIsBlocked(name string) bool {
 	for _, fn := range r.DisabledPacks() {
 		if name == fn {
@@ -374,7 +337,7 @@ func (r *Repo) PackIsBlocked(name string) bool {
 	return false
 }
 
-//...
+// PackIsActive проверка отсутствия у пакета блокировки
 func (r *Repo) PackIsActive(pack string) bool {
 	for _, fp := range r.ActivePacks() {
 		if fp == pack {
@@ -384,7 +347,7 @@ func (r *Repo) PackIsActive(pack string) bool {
 	return false
 }
 
-//...
+// AddFile добавляет данные файла пакета в БД при обнаружении в репозитории
 func (r *Repo) AddFile(fInfo *FileInfo) error {
 	if res, err := r.stmtAddFile.Exec(fInfo.ID, fInfo.Path, fInfo.Size, fInfo.MDate, fInfo.Hash); err != nil {
 		return fmt.Errorf(":stmtAddFile: %v", err)
@@ -396,7 +359,7 @@ func (r *Repo) AddFile(fInfo *FileInfo) error {
 	return nil
 }
 
-//..
+// UpdateFileData обновляет данные о файде в пакете при изменении в репозитории
 func (r *Repo) UpdateFileData(fd *FileInfo) error {
 	if res, err := r.stmtUpdFile.Exec(fd.Size, fd.MDate, fd.Hash, fd.ID); err != nil {
 		return fmt.Errorf("stmtUpdFile error: %v", err)
@@ -406,7 +369,7 @@ func (r *Repo) UpdateFileData(fd *FileInfo) error {
 	return nil
 }
 
-//...
+// RemoveFile удаляет данные о файле из БД при отсутствии в репозитории
 func (r *Repo) RemoveFile(fInfo *FileInfo) error {
 	if res, err := r.stmtDelFile.Exec(fInfo.ID); err != nil {
 		return fmt.Errorf(":stmtDelFile: %v", err)
@@ -418,13 +381,14 @@ func (r *Repo) RemoveFile(fInfo *FileInfo) error {
 	return nil
 }
 
-//...
+// CleanPacks сбрасывает кэш с данными об активных, индексированных и блокированных пакетах
+// при команде об активации или блокировке
 func (r *Repo) CleanPacks() error {
 	// clean cached lists
 	r.actPacks = []string{}
 	r.disPacks = []string{}
 	r.indPacks = []string{}
-	for _, pack := range r.packages() { // проход по списку пакетов в БД
+	for _, pack := range r.Packages() { // проход по списку пакетов в БД
 		if !r.PackIsActive(pack) {
 			if err = r.RemovePack(pack); err != nil {
 				return err
@@ -434,23 +398,11 @@ func (r *Repo) CleanPacks() error {
 	return nil
 }
 
-// indexedPack передает через канал список проиндексированных пакетов репозитория
-func (r *Repo) indexedPack(ch chan<- string) {
-	var pack string
-	rows, _ := r.db.Query("SELECT name FROM packages ORDER BY name;")
-	defer rows.Close()
-	for rows.Next() {
-		_ = rows.Scan(&pack)
-		ch <- pack
-	}
-	close(ch)
-}
-
-//...
-func (r *Repo) packages() []string { // todo: в горутину ^^^
+// Packages возвращает список проиндексированных пакетов
+func (r *Repo) Packages() []string {
 	var packs []string
 	var name string
-	rows, _ := r.db.Query("SELECT Name FROM packages ORDER BY Name;")
+	rows, _ := r.db.Query("SELECT name FROM packages ORDER BY Name;")
 	defer rows.Close()
 	for rows.Next() {
 		_ = rows.Scan(&name)
@@ -459,7 +411,7 @@ func (r *Repo) packages() []string { // todo: в горутину ^^^
 	return packs
 }
 
-//...
+// DisablePack блокирует пакет
 func (r *Repo) DisablePack(pack string) error {
 	res, err := r.db.Exec("INSERT INTO excludes VALUES (?);", pack)
 	if err != nil {
@@ -472,7 +424,7 @@ func (r *Repo) DisablePack(pack string) error {
 	return nil
 }
 
-//...
+// EnablePack активирует пакет
 func (r *Repo) EnablePack(pack string) error {
 	res, err := r.db.Exec("DELETE FROM excludes WHERE Name=?;", pack)
 	if err != nil {
@@ -485,11 +437,11 @@ func (r *Repo) EnablePack(pack string) error {
 	return nil
 }
 
-//...
+// RemovePack удаляет данные о пакете
 func (r *Repo) RemovePack(pack string) error {
 	res, err := r.db.Exec("DELETE FROM packages WHERE Name=?;", pack)
 	if err != nil {
-		return fmt.Errorf("error remove pack", pack)
+		return fmt.Errorf("error remove pack: %v", pack)
 	}
 	if c, _ := res.RowsAffected(); c == 0 {
 		return fmt.Errorf("должна быть удалена 1 запись: 0")
@@ -498,6 +450,7 @@ func (r *Repo) RemovePack(pack string) error {
 	return nil
 }
 
+// DBCleanPackages удаляет все данные о пакетах
 func (r *Repo) DBCleanPackages() error {
 	_, err := r.db.Exec("DELETE FROM packages;")
 	if err != nil {
@@ -506,6 +459,7 @@ func (r *Repo) DBCleanPackages() error {
 	return nil
 }
 
+// DBCleanAliases удаляет все данные о псевдонимах
 func (r *Repo) DBCleanAliases() error {
 	_, err := r.db.Exec("DELETE FROM aliases;")
 	if err != nil {
@@ -514,6 +468,7 @@ func (r *Repo) DBCleanAliases() error {
 	return nil
 }
 
+// DBCleanStatus удаляет все данные о блокировках
 func (r *Repo) DBCleanStatus() error {
 	_, err := r.db.Exec("DELETE FROM excludes;")
 	if err != nil {
@@ -523,10 +478,10 @@ func (r *Repo) DBCleanStatus() error {
 }
 
 // todo: пересмотреть на расчет суммы частями
-//...
+// HashSumPack подсчет контрольной суммы пакета по основанию сумм файлов
 func (r *Repo) HashSumPack(id int64) error {
 	var hash, hTotal string
-	rows, _ := r.db.Query("SELECT hash FROM FILES WHERE package_id=?;", id)
+	rows, _ := r.db.Query("SELECT hash FROM files WHERE package_id=?;", id)
 	defer rows.Close()
 	for rows.Next() {
 		_ = rows.Scan(&hash)
@@ -543,7 +498,7 @@ func (r *Repo) HashSumPack(id int64) error {
 	return nil
 }
 
-//...
+// SetPrepare компилирует SQL шаблоны запросов для ускорения обработки данных
 func (r *Repo) SetPrepare() error {
 	//
 	sqlExpr := "INSERT INTO files ('package_id', 'path', 'size', 'mdate', 'hash') VALUES (?, ?, ?, ?, ?);"
@@ -564,20 +519,7 @@ func (r *Repo) SetPrepare() error {
 	return nil
 }
 
-// ...
-type RepoStData struct {
-	TotalCnt   int       // общее количество пакетов
-	IndexedCnt int       // количество проиндексированных пакетов
-	BlockedCnt int       // количество заблокированных
-	IndexSize  int64     // размер индекс-файла в байтах
-	IndexMDate time.Time // дата изменения индекс-файла
-	DBSize     int64     // размер файла БД в байтах
-	DBMDate    time.Time // дата изменения файла БД
-	HashSize   int64     // размер хэш-файла в байтах
-	HashMDate  time.Time // дата изменения хэш-файла
-}
-
-//...
+// Status выводит информацию о состоянии репозитория
 func (r *Repo) Status() (*RepoStData, error) {
 	data := new(RepoStData)
 	// количество активных пакетов
@@ -593,12 +535,12 @@ func (r *Repo) Status() (*RepoStData, error) {
 	// количество пакетов в репозитории
 	ch := make(chan string)
 	go utils.DirList(r.Path(), ch)
-	for _ = range ch {
+	for range ch {
 		data.TotalCnt += 1
 	}
 
 	// данные БД файла
-	fInfo, err := os.Stat(DBPath(r.Path()))
+	fInfo, err := os.Stat(pathDB(r.Path()))
 	if err != nil {
 		data.DBSize = -1
 		data.DBMDate = time.Time{}
@@ -608,7 +550,7 @@ func (r *Repo) Status() (*RepoStData, error) {
 	}
 
 	// данные индекс файла
-	fInfo, err = os.Stat(filepath.Join(r.Path(), Indexgz))
+	fInfo, err = os.Stat(filepath.Join(r.Path(), IndexGZ))
 	if err != nil {
 		data.IndexSize = -1
 		data.IndexMDate = time.Time{}
@@ -618,7 +560,7 @@ func (r *Repo) Status() (*RepoStData, error) {
 	}
 
 	// данные индекс-хэш файла
-	fInfo, err = os.Stat(filepath.Join(r.Path(), Indexgz+".sha1"))
+	fInfo, err = os.Stat(filepath.Join(r.Path(), IndexGZ+".sha1"))
 	if err != nil {
 		data.HashSize = -1
 		data.HashMDate = time.Time{}
@@ -629,12 +571,7 @@ func (r *Repo) Status() (*RepoStData, error) {
 	return data, nil
 }
 
-type ListData struct {
-	Status int8
-	Name   string
-}
-
-// ...
+// List формирует и передает поканалу список проиндексированных пакетов с данными о статусе
 func (r *Repo) List(ch chan<- *ListData) {
 	dir := make(chan string)
 	go utils.DirList(r.Path(), dir)
@@ -661,6 +598,7 @@ func (r *Repo) List(ch chan<- *ListData) {
 	close(ch)
 }
 
+// checkDB проверяет целостность БД
 func (r *Repo) checkDB() error {
 	if rows, err := r.db.Query("PRAGMA integrity_check ;"); err != nil {
 		return err
@@ -676,6 +614,7 @@ func (r *Repo) checkDB() error {
 	return nil
 }
 
+// CheckDBVersion проверка соответствия версии БД репозитория перед индексацией
 func (r *Repo) CheckDBVersion() error {
 	vmaj, vmin, err := r.VersionDB()
 	if err != nil {
@@ -692,6 +631,7 @@ func (r *Repo) CheckDBVersion() error {
 	return nil
 }
 
+// EmptyExecFilesList возвращает список пакетов с пустыми значениями данных об исполняемых файлах
 func (r *Repo) EmptyExecFilesList() []string {
 	var name string
 	var emptyList []string
@@ -705,7 +645,7 @@ func (r *Repo) EmptyExecFilesList() []string {
 	return emptyList
 }
 
-//..
+// VersionDB возвращает версию структуры БД
 func (r *Repo) VersionDB() (int64, int64, error) {
 	var vmaj, vmin int64
 	err := r.db.QueryRow("SELECT vers_major, vers_minor FROM info WHERE id=1;").Scan(&vmaj, &vmin)
@@ -715,11 +655,12 @@ func (r *Repo) VersionDB() (int64, int64, error) {
 	return vmaj, vmin, nil
 }
 
+// ExecFileSet фиксирует имя исполняемого файла пакета
 func (r *Repo) ExecFileSet(pack string, force bool) error {
-	id, err := r.GetPackageID(pack)
+	id, err := r.PackageID(pack)
 	utils.CheckError(fmt.Sprintf("не найден пакет в БД: %v", pack), &err)
 
-	switch force {
+	switch force { // force - принудительная замена
 	case false:
 		var exec_db string
 		if err := r.db.QueryRow(
@@ -747,8 +688,9 @@ func (r *Repo) ExecFileSet(pack string, force bool) error {
 	return nil
 }
 
+// ExecFileDel удаляет информацию об исполняемом файле пакета
 func (r *Repo) ExecFileDel(pack string) error {
-	id, err := r.GetPackageID(pack)
+	id, err := r.PackageID(pack)
 	utils.CheckError(fmt.Sprintf("не найден пакет в БД: %v", pack), &err)
 	res, err := r.db.Exec("UPDATE packages SET exec='noexec' WHERE id=?;", id)
 	if err != nil {
@@ -761,8 +703,9 @@ func (r *Repo) ExecFileDel(pack string) error {
 	return nil
 }
 
+// ExecFileInfo возвращает информацию об исполняемом файле пакета
 func (r *Repo) ExecFileInfo(pack string) (string, error) {
-	id, err := r.GetPackageID(pack)
+	id, err := r.PackageID(pack)
 	utils.CheckError(fmt.Sprintf("не найден пакет в БД: %v", pack), &err)
 	var exec_db string
 
@@ -775,6 +718,7 @@ func (r *Repo) ExecFileInfo(pack string) (string, error) {
 	return exec_db, nil
 }
 
+// CheckEmptyExecFiles проверяет на наличие не установленных исполняемых файлах пакетов в репозитории
 func (r *Repo) CheckEmptyExecFiles() error {
 	if len(r.EmptyExecFilesList()) > 0 {
 		return fmt.Errorf("\n\tТребуется определить исполняемые файлы\n\t" +
@@ -785,7 +729,7 @@ func (r *Repo) CheckEmptyExecFiles() error {
 
 // InitDB инициализирует файл db
 func InitDB(path string) error {
-	fp := DBPath(path)
+	fp := pathDB(path)
 	if utils.FileExists(fp) {
 		return fmt.Errorf("попытка повторной инициализации")
 	}
@@ -807,21 +751,19 @@ func InitDB(path string) error {
 	return nil
 }
 
-// newConnection возвращает соединение с БД или ошибку
+// CleanForMigrate удаляет файлы БД, индекса
+func CleanForMigrate(repo *Repo) error {
+	for _, fp := range []string{fileDBName, IndexGZ, IndexGZ + ".sha1"} {
+		fp = filepath.Join(repo.path, fp)
+		_ = os.Remove(fp)
+	}
+	return nil
+}
+
 func newConnection(fp string) (*sql.DB, error) {
 	return sql.Open("sqlite3", fp)
 }
 
-//...
-func DBPath(repoPath string) string {
+func pathDB(repoPath string) string {
 	return filepath.Join(repoPath, fileDBName)
-}
-
-//...
-func CleanForMigrate(repo *Repo) error {
-	for _, fp := range []string{fileDBName, Indexgz, Indexgz + ".sha1"} {
-		fp = filepath.Join(repo.Path(), fp)
-		_ = os.Remove(fp)
-	}
-	return nil
 }

@@ -248,7 +248,7 @@ func readConfFromJson() (conf, error) {
 		if err != nil {
 			return cnf, err
 		}
-		json.Unmarshal(buf, &cnf)
+		err = json.Unmarshal(buf, &cnf)
 
 		switch err.(type) {
 		case *json.SyntaxError:

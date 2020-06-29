@@ -25,7 +25,7 @@ func List(r *obj.Repo, cmd string) {
 			}
 		}
 	case "indexed":
-		for _, pack := range r.IndexedPacks() {
+		for _, pack := range r.Packages() {
 			fmt.Println(pack)
 		}
 	case "noindexed":

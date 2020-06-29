@@ -17,7 +17,7 @@ func searchExecFile(root string, regExp *regexp.Regexp) ([]string, error) {
 	fpCh := make(chan *FileInfo) // channel for filepath
 	erCh := make(chan error)     // channel for error
 
-	go DirWalk(root, fpCh, erCh)
+	go dirWalk(root, fpCh, erCh)
 
 	for {
 		select {
@@ -58,7 +58,7 @@ func defineExecFile(r *Repo, pack string) string {
 		execFile      string
 	)
 	packRoot := filepath.Join(r.Path(), pack)
-	execRegEx, _ := regexp.Compile("^.+\\.exe$")
+	execRegEx, _ := regexp.Compile(`^.+\.exe$`)
 
 	if execFilesList, err = searchExecFile(packRoot, execRegEx); err != nil {
 		panic(fmt.Errorf("%v:%v:%v", errExecFileMsg, "set", err))
@@ -77,6 +77,7 @@ func defineExecFile(r *Repo, pack string) string {
 	return execFile
 }
 
+// ShowEmptyExecFiles выводит на консоль список пакетов, для которых требуется указать исполняемый файл
 func ShowEmptyExecFiles(r *Repo) {
 	emptyList := r.EmptyExecFilesList()
 	if len(emptyList) > 0 {
@@ -88,8 +89,8 @@ func ShowEmptyExecFiles(r *Repo) {
 	}
 }
 
-// DirWalk Рекурсивно обходит указанную папку и возвращает имена файлов в указанный канал или ошибки в соответствующий канал
-func DirWalk(root string, fpCh chan<- *FileInfo, erCh chan<- error) {
+// dirWalk Рекурсивно обходит указанную папку и возвращает имена файлов в указанный канал или ошибки в соответствующий канал
+func dirWalk(root string, fpCh chan<- *FileInfo, erCh chan<- error) {
 	err := filepath.Walk(root, func(fp string, info os.FileInfo, er error) error {
 		if er != nil {
 			return fmt.Errorf("не найден пакет: %q\n", fp)
