@@ -45,8 +45,7 @@ func init() {
 // Run обрабатывает команды командной строки
 func Run() {
 	if flagVersion {
-		fmt.Printf("Версия программы\t: %v\n", version)
-		// flag.PrintDefaults()
+		fmt.Println("Версия:", version)
 		return
 	}
 
@@ -58,7 +57,6 @@ func Run() {
 	// проверка на наличие команды и последующая обработка
 	if len(flag.Args()) == 0 {
 		panic("не указана команда")
-		// flag.PrintDefaults()
 	}
 
 	fmt.Println("установлен путь к репозиторию:", repoPath)
@@ -240,12 +238,10 @@ func newFlagSet(name string) *flag.FlagSet {
 }
 
 // проверка файла-конфигурации ,чтение настроек
-func readConfFromJSON() (conf, error) {
-	var err error
-	cnf := conf{}
-	currDir, _ := os.Getwd()
-	root := filepath.Dir(os.Args[0])
-	files, _ := filepath.Glob(filepath.Join(currDir, root, "*.conf"))
+func readConfFromJSON() (cnf conf, err error) {
+	curFilePath, _ := os.Executable()
+	curDir := filepath.Dir(curFilePath)
+	files, _ := filepath.Glob(filepath.Join(curDir, "*.conf"))
 
 	if len(files) > 0 {
 		confFile := filepath.Clean(files[0])
@@ -257,7 +253,7 @@ func readConfFromJSON() (conf, error) {
 
 		switch err.(type) {
 		case *json.SyntaxError:
-			fmt.Println("неверный синтаксис файла настроек")
+			fmt.Println("неверный синтаксис файла настроек", err)
 		}
 	}
 	return cnf, err
