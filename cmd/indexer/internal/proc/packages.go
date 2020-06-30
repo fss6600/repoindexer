@@ -7,16 +7,14 @@ import (
 	"github.com/pmshoot/repoindexer/cmd/indexer/internal/utils"
 )
 
-type PackStatus int
-
 // SetPackStatus активирует или блокирует пакет для индексации
-func SetPackStatus(r *obj.Repo, status PackStatus, packs []string) {
+func SetPackStatus(r *obj.Repo, status int, packs []string) {
 	const errPackMsg = errMsg + ":packages::SetPackStatus:"
 	done := false
 
 	switch status {
 	// активация пакетов
-	case PackStateEnable:
+	case obj.PackStatusActive:
 		for _, pack := range packs {
 			if !r.PackIsBlocked(pack) {
 				fmt.Printf("[ %v ] уже в актуальном состоянии\n", pack)
@@ -30,7 +28,7 @@ func SetPackStatus(r *obj.Repo, status PackStatus, packs []string) {
 			fmt.Println(doPopMsg)
 		}
 	// блокирование пакетов
-	case PackStateDisable:
+	case obj.PackStatusBlocked:
 		for _, pack := range packs {
 			if r.PackIsBlocked(pack) {
 				fmt.Printf("[ %v ] уже заблокирован\n", pack)

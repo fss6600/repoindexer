@@ -8,7 +8,7 @@ DROP TABLE IF EXISTS files;
 DROP TABLE IF EXISTS info;
 DROP TABLE IF EXISTS packages;
 DROP TABLE IF EXISTS aliases;
-DROP TABLE IF EXISTS exludes;
+DROP TABLE IF EXISTS excludes;
 
 -- Пакеты подсистем
 CREATE TABLE packages

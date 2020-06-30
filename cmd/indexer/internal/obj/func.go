@@ -2,6 +2,7 @@ package obj
 
 import (
 	"bufio"
+	"database/sql"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -99,6 +100,46 @@ func dirWalk(root string) chan FileInfo {
 		}
 		close(fInfoCh)
 	}()
-
 	return fInfoCh
+}
+
+// InitDB инициализирует файл db
+func InitDB(path string) error {
+	fp := pathDB(path)
+	if utils.FileExists(fp) {
+		return fmt.Errorf("попытка повторной инициализации")
+	}
+	db, err := newConnection(fp)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		_ = db.Close()
+	}()
+	if _, err := db.Exec(initSQL); err != nil {
+		return err
+	}
+	if _, err := db.Exec("INSERT INTO info (id, vers_major, vers_minor) VALUES (?, ?, ?);",
+		1, DBVersionMajor, DBVersionMinor); err != nil {
+		return err
+	}
+	fmt.Println("Репозиторий инициализирован")
+	return nil
+}
+
+// CleanForMigrate удаляет файлы БД, индекса
+func CleanForMigrate(repo *Repo) error {
+	for _, fp := range []string{fileDBName, IndexGZ, IndexGZ + ".sha1"} {
+		fp = filepath.Join(repo.path, fp)
+		_ = os.Remove(fp)
+	}
+	return nil
+}
+
+func newConnection(fp string) (*sql.DB, error) {
+	return sql.Open("sqlite3", fp)
+}
+
+func pathDB(repoPath string) string {
+	return filepath.Join(repoPath, fileDBName)
 }

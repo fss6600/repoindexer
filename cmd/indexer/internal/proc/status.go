@@ -7,23 +7,26 @@ import (
 	"github.com/pmshoot/repoindexer/cmd/indexer/internal/utils"
 )
 
+// RepoStatus обрабатывает команду `status`
+// выводит актуальную информацию о репозитории
 func RepoStatus(r *obj.Repo) {
 	const errRStatMsg = errMsg + ":status:"
 	rData, err := r.Status()
 	utils.CheckError(errRStatMsg, &err)
 
 	var reglStatus string
-	switch ReglIsSet(r.Path()) {
+	switch reglIsSet(r.Path()) {
 	case true:
 		reglStatus = "on"
 	default:
 		reglStatus = "off"
 	}
+
 	unIndexed := rData.TotalCnt - (rData.IndexedCnt + rData.BlockedCnt)
 	tmpl := "%-40s%v\n"
 
 	fmt.Printf(tmpl, "Статус регламента", reglStatus)
-	fmt.Println("")
+	fmt.Println()
 	fmt.Printf(tmpl, "Пакетов в репозитории", rData.TotalCnt)
 	fmt.Printf(tmpl, "Пакетов проиндексировано", rData.IndexedCnt)
 	fmt.Printf(tmpl, "Пакетов заблокировано", rData.BlockedCnt)
@@ -32,7 +35,7 @@ func RepoStatus(r *obj.Repo) {
 	} else if unIndexed < 0 {
 		fmt.Printf(tmpl, "Удалено пакетов из репозитория", unIndexed*-1)
 	}
-	fmt.Println("")
+	fmt.Println()
 	if rData.DBSize > -1 {
 		fmt.Printf("index.db \t%d\t байт от %v\n", rData.DBSize, rData.DBMDate.Format(timeLayout))
 	} else {
@@ -48,7 +51,7 @@ func RepoStatus(r *obj.Repo) {
 	} else {
 		fmt.Println("index.gz.sha1 \t\t нет данных")
 	}
-	fmt.Println("")
+	fmt.Println()
 
 	vMaj, vMin, err := r.VersionDB()
 	if err != nil {

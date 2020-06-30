@@ -2,8 +2,7 @@ package utils
 
 import (
 	"bufio"
-	"compress/gzip"
-	"crypto"
+	"crypto/sha1"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -14,20 +13,21 @@ import (
 	"strings"
 )
 
-// проверяет наличие файла на диске
+// FileExists проверяет наличие файла на диске
 func FileExists(fp string) bool {
 	_, err := os.Stat(fp)
 	return err == nil
 }
 
-// возвращает данные IP,.. инициатора работ в репозитории
+// TaskOwnerInfo возвращает данные IP,.. инициатора работ в репозитории
 func TaskOwnerInfo() []byte {
-	return []byte("127.0.0.1") //todo: добавить информацию о подключении
+	return []byte("127.0.0.1") // TODO: добавить информацию о подключении
 }
 
+// HashSum возвращает строку контрольной суммы переданной строки
 func HashSum(sd string) string {
 	r := strings.NewReader(sd)
-	h := crypto.SHA1.New()
+	h := sha1.New()
 	_, _ = io.Copy(h, r)
 	return fmt.Sprintf("%x", h.Sum(nil))
 }
@@ -40,14 +40,14 @@ func HashSumFile(fp string) (string, error) {
 		log.Fatalf(errMsg, err)
 	}
 	defer f.Close()
-	h := crypto.SHA1.New()
+	h := sha1.New()
 	if _, err := io.Copy(h, f); err != nil {
 		log.Fatalf(errMsg, err)
 	}
 	return fmt.Sprintf("%x", h.Sum(nil)), nil
 }
 
-//...
+// DirList передает в канал наименования папок в указанной директории
 func DirList(fp string, dirs chan<- string) {
 	fList, err := filepath.Glob(filepath.Join(fp, "*"))
 	if err != nil {
@@ -65,52 +65,14 @@ func DirList(fp string, dirs chan<- string) {
 	close(dirs)
 }
 
-func WriteGzip(jsonData []byte, fp string) error {
-	errMsg := ":WriteGzip: %v"
-	indexFile, err := os.Create(fp)
-	if err != nil {
-		return fmt.Errorf(errMsg, err)
-	}
-	zw := gzip.NewWriter(indexFile)
-	defer func() {
-		_ = zw.Close()
-		_ = indexFile.Close()
-	}()
-
-	_, err = zw.Write(jsonData)
-	if err != nil {
-		return fmt.Errorf(errMsg, err)
-	}
-	return nil
-}
-
-func WriteGzipHash(fp, hash string) error {
-	errMsg := ":writeGzipHash: %v"
-	indexFileHash, err := os.Create(fp + ".sha1")
-	if err != nil {
-		return fmt.Errorf(errMsg, err)
-	}
-	defer func() {
-		if err := indexFileHash.Close(); err != nil {
-			panic(err)
-		}
-	}()
-
-	_, err = indexFileHash.Write([]byte(hash))
-	if err != nil {
-		return fmt.Errorf(errMsg, err)
-	}
-	return nil
-}
-
-//...
+// CheckError проверяет на наличии ошибки
 func CheckError(str string, err *error) {
 	if *err != nil {
 		panic(fmt.Errorf("%v %v", str, *err))
 	}
 }
 
-// обработка вызова panic в любой части программы
+// CheckPanic обработка вызова panic в любой части программы
 func CheckPanic(debug bool) {
 	if !debug {
 		if r := recover(); r != nil {
@@ -120,6 +82,7 @@ func CheckPanic(debug bool) {
 
 }
 
+// UserAccept проверяет ответ пользователя
 func UserAccept(msg string) bool {
 	scanner := bufio.NewScanner(os.Stdin)
 	for i := 0; i < 3; i++ {
@@ -139,6 +102,7 @@ func UserAccept(msg string) bool {
 	return false
 }
 
+// ReadFromJSONFile читает данные из JSON файла
 func ReadFromJSONFile(fp string, v *interface{}) error {
 	buf, err := ioutil.ReadFile(fp)
 	if err != nil {

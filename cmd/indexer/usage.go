@@ -6,12 +6,13 @@ import (
 	"os"
 )
 
-var Usage = func() {
+//
+var usage = func() {
 	fmt.Printf("Использование программы: %s [флаг] команда [параметр команды, ...]\n", os.Args[0])
-	PrintUsage()
+	printUsage()
 }
 
-func PrintUsage() {
+func printUsage() {
 	flag.PrintDefaults()
 	fmt.Println("* - обязательные флаги")
 	fmt.Println("\nКоманды:")

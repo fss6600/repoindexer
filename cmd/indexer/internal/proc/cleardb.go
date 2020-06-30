@@ -7,6 +7,11 @@ import (
 	"github.com/pmshoot/repoindexer/cmd/indexer/internal/utils"
 )
 
+// ClearDB обрабатывает команду cleardb
+// all - удаляет все данные из БД
+// index - удаляет данные об индексации из БД
+// alias - удаляет данные о псевдонимах из БД
+// status - удаляет данные о блокировках из БД
 func ClearDB(r *obj.Repo, cmd string) {
 	const errClrDBMsg = errMsg + ":Cleardb:"
 	var msg string

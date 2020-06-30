@@ -13,13 +13,16 @@ const (
 	errPackIndMsg = errIndexMsg + ":processPackIndex:"
 )
 
-// Index обработка и индексация пакетов в репозитории
+// Index обработка команды `index` - индексация пакетов в репозитории
+// без параметров выполняет полную индексацию репозитория
+// при указании имен пакетов, выполняет индексацию указанных
+// имена пакетов содержащие пробел следует передавать в кавычках
 func Index(r *obj.Repo, fullmode bool, packs []string) {
 	err = r.CheckDBVersion()
 	utils.CheckError("", &err)
 	var changed bool
 
-	CheckRegl(r.Path())
+	checkRegl(r.Path())
 	for _, pack := range packs {
 		if r.PackIsBlocked(pack) {
 			panic(fmt.Sprintf("пакет [ %v ] заблокирован", pack))
@@ -36,7 +39,6 @@ func Index(r *obj.Repo, fullmode bool, packs []string) {
 		if processPackIndex(r, fullmode, pack) && !changed {
 			changed = true
 		}
-
 	}
 	fmt.Println()
 	err = r.CleanPacks()
@@ -55,12 +57,12 @@ func Index(r *obj.Repo, fullmode bool, packs []string) {
 func processPackIndex(r *obj.Repo, fullmode bool, pack string) bool {
 	var (
 		packID                   int64           // ID пакета
-		dbData, fInfo            *obj.FileInfo   //
+		dbData, fInfo            *obj.FileInfo   // указатель на объект с данными файла
 		fsList, dbList           []*obj.FileInfo // список файлов пакета в БД
-		fsInd, dbInd             int             //  counters
+		fsInd, dbInd             int             // counters
 		packChanged, fileChanged bool            // package has changes
-		err                      error
-		fpRel                    string
+		err                      error           // error
+		fpRel                    string          // путь к файлу относительно пакета
 	)
 
 	packID, err = r.PackageID(pack)
@@ -83,7 +85,7 @@ func processPackIndex(r *obj.Repo, fullmode bool, pack string) bool {
 		}
 
 		// Вариант1: Новый пакет или пакет удален
-		// пакета нет в БД: add file to BD
+		// пакета нет в БД - добавить
 		if dbInd > dbMaxInd {
 			// добавляем запись о файле в БД
 			fInfo = fsList[fsInd]
@@ -105,7 +107,7 @@ func processPackIndex(r *obj.Repo, fullmode bool, pack string) bool {
 			continue
 		}
 
-		// пакета нет в репо - удаляем запись о файле из БД
+		// пакета нет в репозитории - удаляем запись о файле из БД
 		if fsInd > fsMaxInd { // not in FS
 			dbData = dbList[dbInd]
 			err = r.RemoveFile(dbData)

@@ -18,9 +18,10 @@ import (
 var repoPath string
 var flagFullIndex, flagDebug, flagVersion bool
 
-// var flagFullIndex, flagPopIndex, flagDebug, flagVersion, flagHelp bool
-
 const tmplErrMsg = "main:"
+
+// STDINWAIT период времени для таймера ожидания ввода с stdin
+const STDINWAIT = time.Millisecond * 50
 
 type conf struct {
 	Repo string `json:"repo"`
@@ -28,7 +29,7 @@ type conf struct {
 
 func init() {
 	var rp string
-	if cnf, err := readConfFromJson(); err == nil {
+	if cnf, err := readConfFromJSON(); err == nil {
 		rp = cnf.Repo
 	}
 	// обработка флагов и переменных
@@ -36,11 +37,12 @@ func init() {
 	flag.BoolVar(&flagDebug, "d", false, "режим отладки")
 	flag.BoolVar(&flagFullIndex, "f", false, "режим принудительной полной индексации")
 	flag.BoolVar(&flagVersion, "v", false, "версия программы")
-	flag.Usage = Usage
+	flag.Usage = usage
 
 	flag.Parse()
 }
 
+// Run обрабатывает команды командной строки
 func Run() {
 	if flagVersion {
 		fmt.Printf("Версия программы\t: %v\n", version)
@@ -48,24 +50,19 @@ func Run() {
 		return
 	}
 
-	// if flagHelp {
-	// 	fmt.Printf("Версия программы\t: %v\n", version)
-	// 	return
-	// }
-
 	// проверка на наличие пути к репозиторию
 	if repoPath == "" {
 		panic("не указан путь к репозиторию")
-		// flag.PrintDefaults()
 	}
+
 	// проверка на наличие команды и последующая обработка
 	if len(flag.Args()) == 0 {
 		panic("не указана команда")
 		// flag.PrintDefaults()
 	}
-	cmd := flag.Args()[0]
 
 	fmt.Println("установлен путь к репозиторию:", repoPath)
+	cmd := flag.Args()[0]
 
 	// обработка команд, не требующих подключения к БД
 	switch cmd {
@@ -74,7 +71,8 @@ func Run() {
 		err := obj.InitDB(repoPath)
 		utils.CheckError(fmt.Sprintf("ошибка при инициализации репозитория '%v':", repoPath), &err)
 		return // выходим, чтобы не инициализировать подключение к БД
-		// on|off режим регламента
+
+	// on|off режим регламента
 	case "regl", "reglament":
 		var mode string
 		cmdRegl := newFlagSet("reglament")
@@ -87,12 +85,12 @@ func Run() {
 	}
 
 	// инициализация и подключение к БД
-	repoPtr, err := obj.NewRepoObj(repoPath)
+	pRepo, err := obj.NewRepoObj(repoPath)
 	utils.CheckError(tmplErrMsg, &err)
-	err = repoPtr.OpenDB()
+	err = pRepo.OpenDB()
 	utils.CheckError("", &err)
 	defer func() {
-		err := repoPtr.Close()
+		err := pRepo.Close()
 		utils.CheckError(tmplErrMsg, &err)
 	}()
 
@@ -105,13 +103,15 @@ func Run() {
 			packs = readDataFromStdin() // из stdin через pipe
 		}
 		if len(packs) == 0 {
-			packs = repoPtr.ActivePacks() // активные
+			packs = pRepo.ActivePacks() // активные
 		}
-		proc.Index(repoPtr, flagFullIndex, packs)
-	// выгрузка данных индексации из БД в Index.json[gz]
+		proc.Index(pRepo, flagFullIndex, packs)
+
+	// выгрузка данных индексации из БД в Index.gz
 	case "pop", "populate":
-		proc.Populate(repoPtr)
-	//
+		proc.Populate(pRepo)
+
+	// обработка исполняемых файлов пакетов
 	case "exec":
 		var cmd string
 		var packs []string
@@ -122,7 +122,8 @@ func Run() {
 		}
 		cmd = cmdExecFile.Args()[0]
 		packs = cmdExecFile.Args()[1:]
-		proc.ExecFile(repoPtr, cmd, packs)
+		proc.ExecFile(pRepo, cmd, packs)
+
 	// активация/блокировка пакетов в репозитории
 	case "enable", "disable":
 		cmdSetStatus := newFlagSet("setstatus")
@@ -135,13 +136,12 @@ func Run() {
 				panic("укажите по крайней мере один пакет")
 			}
 		}
-		var status proc.PackStatus
 		if cmd == "enable" {
-			status = proc.PackStateEnable
+			proc.SetPackStatus(pRepo, obj.PackStatusActive, packetsList)
 		} else {
-			status = proc.PackStateDisable
+			proc.SetPackStatus(pRepo, obj.PackStatusBlocked, packetsList)
 		}
-		proc.SetPackStatus(repoPtr, status, packetsList)
+
 	// присвоение/удаление/отображение псевдонимов
 	case "alias":
 		var cmd string
@@ -162,7 +162,8 @@ func Run() {
 				}
 			}
 		}
-		proc.Alias(repoPtr, cmd, aliases)
+		proc.Alias(pRepo, cmd, aliases)
+
 	// вывод перечня и статус пакетов в репозитории
 	case "list":
 		var cmd string
@@ -172,17 +173,17 @@ func Run() {
 		} else {
 			cmd = cmdList.Args()[0]
 		}
-		proc.List(repoPtr, cmd)
+		proc.List(pRepo, cmd)
+
 	// упаковка и переиндексация данных в БД
 	case "clean":
 		fmt.Print("Упаковка БД: ")
-		err = repoPtr.Clean()
+		err = pRepo.Clean()
 		utils.CheckError(tmplErrMsg, &err)
 		fmt.Println("OK")
+
 	// очистка БД от данных
 	case "cleardb":
-		// todo добавить подтверждение
-
 		var cmd string
 		cmdClearDB := newFlagSet("cleardb")
 		if len(cmdClearDB.Args()) == 0 {
@@ -190,12 +191,16 @@ func Run() {
 		} else {
 			cmd = cmdClearDB.Args()[0]
 		}
-		proc.ClearDB(repoPtr, cmd)
+		proc.ClearDB(pRepo, cmd)
+
 	// вывод информации о репозитории
 	case "status":
-		proc.RepoStatus(repoPtr)
+		proc.RepoStatus(pRepo)
+
+	// миграция БД
 	case "migrate":
-		proc.MigrateDB(repoPtr)
+		proc.MigrateDB(pRepo)
+
 	default:
 		panic("команда не опознана")
 	}
@@ -221,7 +226,7 @@ func readDataFromStdin() []string {
 			} else {
 				return lst
 			}
-		case <-time.After(time.Millisecond * 50):
+		case <-time.After(STDINWAIT):
 			return lst
 		}
 	}
@@ -234,8 +239,8 @@ func newFlagSet(name string) *flag.FlagSet {
 	return f
 }
 
-func readConfFromJson() (conf, error) {
-	// проверка файла-конфигурации ,чтение настроек
+// проверка файла-конфигурации ,чтение настроек
+func readConfFromJSON() (conf, error) {
 	var err error
 	cnf := conf{}
 	currDir, _ := os.Getwd()

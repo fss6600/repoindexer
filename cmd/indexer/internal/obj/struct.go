@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-// статусы пакета для выводы информации о репозитории
+// статусы пакета
 const (
 	PackStatusNotIndexed = iota - 1 // не индексирован
 	PackStatusBlocked               // блокирован

@@ -10,7 +10,8 @@ import (
 	"time"
 
 	"github.com/mattn/go-sqlite3"
-	_ "github.com/mattn/go-sqlite3"
+	// use sqlite driver
+	// _ "github.com/mattn/go-sqlite3"
 	"github.com/pmshoot/repoindexer/cmd/indexer/internal/utils"
 )
 
@@ -19,7 +20,7 @@ const (
 	// IndexGZ индекс-файл
 	IndexGZ string = "index.gz"
 	// DBVersionMajor major ver DB
-	DBVersionMajor int64 = 1 // DBVersionMajor major ver DB
+	DBVersionMajor int64 = 1
 	// DBVersionMinor minor ver DB
 	DBVersionMinor int64 = 4
 )
@@ -89,7 +90,7 @@ func (r *Repo) Close() error {
 	return nil
 }
 
-// Clean - очистка и реиндекс БД
+// Clean - очистка и ре-индекс БД
 func (r *Repo) Clean() error {
 	if r.db != nil {
 		if _, err = r.db.Exec("VACUUM"); err != nil {
@@ -277,7 +278,7 @@ func (r *Repo) FilesPackRepo(pack string) []*FileInfo {
 	return fInfoList
 }
 
-// FilesPackDB возвращвет список файлов пакета имеющихся в БД
+// FilesPackDB возвращает список файлов пакета имеющихся в БД
 func (r *Repo) FilesPackDB(id int64) ([]*FileInfo, error) {
 	rows, err := r.db.Query("SELECT id, path, size, mdate, hash FROM files WHERE package_id=? ORDER BY path;", id)
 	if err != nil {
@@ -701,45 +702,4 @@ func (r *Repo) CheckEmptyExecFiles() error {
 			"Запустите программу с командой 'exec check'\n")
 	}
 	return nil
-}
-
-// InitDB инициализирует файл db
-func InitDB(path string) error {
-	fp := pathDB(path)
-	if utils.FileExists(fp) {
-		return fmt.Errorf("попытка повторной инициализации")
-	}
-	db, err := newConnection(fp)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		_ = db.Close()
-	}()
-	if _, err := db.Exec(initSQL); err != nil {
-		return err
-	}
-	if _, err := db.Exec("INSERT INTO info (id, vers_major, vers_minor) VALUES (?, ?, ?);",
-		1, DBVersionMajor, DBVersionMinor); err != nil {
-		return err
-	}
-	fmt.Println("Репозиторий инициализирован")
-	return nil
-}
-
-// CleanForMigrate удаляет файлы БД, индекса
-func CleanForMigrate(repo *Repo) error {
-	for _, fp := range []string{fileDBName, IndexGZ, IndexGZ + ".sha1"} {
-		fp = filepath.Join(repo.path, fp)
-		_ = os.Remove(fp)
-	}
-	return nil
-}
-
-func newConnection(fp string) (*sql.DB, error) {
-	return sql.Open("sqlite3", fp)
-}
-
-func pathDB(repoPath string) string {
-	return filepath.Join(repoPath, fileDBName)
 }

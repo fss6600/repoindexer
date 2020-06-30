@@ -16,12 +16,6 @@ const (
 	tmplListOut = "[%4v] %v\n"
 )
 
-// packages
-const (
-	PackStateDisable PackStatus = iota // статус пакета - активировать
-	PackStateEnable                    // статус пакета - заблокировать
-)
-
 // reglament
 const (
 	reglOnMessage  string = "Режим регламента активирован [on]"

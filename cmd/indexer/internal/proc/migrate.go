@@ -7,8 +7,14 @@ import (
 	"github.com/pmshoot/repoindexer/cmd/indexer/internal/utils"
 )
 
+// TODO: алгоритм миграции с сохранением данных БД
+
+// MigrateDB обрабатывает команду `migrate`
+// сохраняет данные псевдонимов и блокировок пакетов при миграции
+// и импортирует обратно после удаления данных из БД
+// Миграция требуется при изменении структуры БД
 func MigrateDB(r *obj.Repo) {
-	CheckRegl(r.Path())
+	checkRegl(r.Path())
 	if !utils.UserAccept("\nДанная операция заменит файлы БД и индекса." +
 		"\nУбедитесь, что у Вас есть резервная копия") {
 		return

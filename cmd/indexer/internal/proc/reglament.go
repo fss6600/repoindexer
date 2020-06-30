@@ -9,12 +9,13 @@ import (
 	"github.com/pmshoot/repoindexer/cmd/indexer/internal/utils"
 )
 
-// SetReglamentMode активирует/деактивирует режим регламента репозитория
+// SetReglamentMode обрабатывает команду `regl`
+// активирует/деактивирует режим регламента репозитория
 func SetReglamentMode(repoPath, mode string) {
 	const errReglMsg = errMsg + ":packages::SetReglamentMode:"
-	// проверка на наличие файла-флага, определение режима реглавмета
+	// проверка на наличие файла-флага, определение режима регламента
 	fRegl := filepath.Join(repoPath, fnReglament)
-	modeOn := ReglIsSet(repoPath)
+	modeOn := reglIsSet(repoPath)
 
 	switch mode {
 	// вывод режима регламента
@@ -36,7 +37,7 @@ func SetReglamentMode(repoPath, mode string) {
 			utils.CheckError(fmt.Sprintf("%v", errReglMsg), &err)
 			fmt.Println(reglOnMessage)
 		}
-	// деактивация режима реглавмента
+	// деактивация режима регламента
 	case "off":
 		// регламент активирован - удаляем файл
 		if modeOn {
@@ -49,13 +50,13 @@ func SetReglamentMode(repoPath, mode string) {
 	}
 }
 
-func ReglIsSet(repo string) bool {
+func reglIsSet(repo string) bool {
 	reglf := filepath.Join(repo, fnReglament)
 	return utils.FileExists(reglf)
 }
 
-func CheckRegl(repoPath string) {
-	if !ReglIsSet(repoPath) {
+func checkRegl(repoPath string) {
+	if !reglIsSet(repoPath) {
 		panic("не установлен режим регламента!")
 	}
 }
