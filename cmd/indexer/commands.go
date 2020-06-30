@@ -243,9 +243,9 @@ func newFlagSet(name string) *flag.FlagSet {
 func readConfFromJSON() (conf, error) {
 	var err error
 	cnf := conf{}
-	currDir, _ := os.Getwd()
-	root := filepath.Dir(os.Args[0])
-	files, _ := filepath.Glob(filepath.Join(currDir, root, "*.conf"))
+	curFilePath, _ := os.Executable()
+	curDir := filepath.Dir(curFilePath)
+	files, _ := filepath.Glob(filepath.Join(curDir, "*.conf"))
 
 	if len(files) > 0 {
 		confFile := filepath.Clean(files[0])
