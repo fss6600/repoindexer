@@ -1,10 +1,7 @@
-package proc
+package handler
 
 import (
 	"fmt"
-
-	"github.com/pmshoot/repoindexer/cmd/indexer/internal/obj"
-	"github.com/pmshoot/repoindexer/cmd/indexer/internal/utils"
 )
 
 // TODO: алгоритм миграции с сохранением данных БД
@@ -13,22 +10,30 @@ import (
 // сохраняет данные псевдонимов и блокировок пакетов при миграции
 // и импортирует обратно после удаления данных из БД
 // Миграция требуется при изменении структуры БД
-func MigrateDB(r *obj.Repo) {
-	checkRegl(r.Path())
-	if !utils.UserAccept("\nДанная операция заменит файлы БД и индекса." +
+func MigrateDB(r *Repo) error {
+	checkRegl(r.path)
+	if !UserAccept("\nДанная операция заменит файлы БД и индекса." +
 		"\nУбедитесь, что у Вас есть резервная копия") {
-		return
+		return nil
 	}
-	const ErrMigrateMsg = errMsg + ":Migrate:"
 	fmt.Println("")
 	vMaj, vMin, err := r.VersionDB()
-	utils.CheckError(ErrMigrateMsg, &err)
-	if obj.DBVersionMajor > vMaj {
-		panic("\n\tТребуется переиндексация репозитория")
-	} else if obj.DBVersionMajor < vMaj || obj.DBVersionMinor < vMin {
-		panic("Возможно вы используете старую версию программы")
-	} else if obj.DBVersionMajor == vMaj && obj.DBVersionMinor == vMin {
-		panic("Миграция не требуется")
+	if err != nil {
+		return err
+	}
+	if DBVersionMajor > vMaj {
+		return &internalError{
+			Text:   "\n\tтребуется переиндексация репозитория",
+			Caller: "Migrate",
+		}
+	} else if DBVersionMajor < vMaj || DBVersionMinor < vMin {
+		return &internalError{
+			Text:   "возможно вы используете старую версию программы",
+			Caller: "Migrate",
+		}
+	} else if DBVersionMajor == vMaj && DBVersionMinor == vMin {
+		fmt.Println("миграция не требуется")
+		return nil
 	}
 	tmpl := "%-30s: "
 	//подготовка списка заблокированных пакетов
@@ -40,37 +45,44 @@ func MigrateDB(r *obj.Repo) {
 
 	// close DB
 	fmt.Printf(tmpl, "Закрытие БД")
-	err = r.Close()
-	utils.CheckError(ErrMigrateMsg, &err)
+	if err = r.Close(); err != nil {
+		return err
+	}
 	fmt.Println("OK")
 
 	// очистка старых файлов БД и индекса
 	fmt.Printf(tmpl, "удаление файлов БД и индекса")
-	err = obj.CleanForMigrate(r)
-	utils.CheckError(ErrMigrateMsg, &err)
+	if err = CleanForMigrate(r); err != nil {
+		return err
+	}
 	fmt.Println("OK")
 
 	// инициализация репозитория
 	fmt.Printf(tmpl, "инициализация репозитория")
-	err = obj.InitDB(r.Path())
-	utils.CheckError(ErrMigrateMsg, &err)
+	if err = InitDB(r.Path()); err != nil {
+		return err
+	}
 
 	// connect to DB
-	err = r.OpenDB()
-	utils.CheckError(ErrMigrateMsg, &err)
+	if err = r.OpenDB(); err != nil {
+		return err
+	}
 
 	// ввод псевдонимов в БД
 	fmt.Println("восстановление alias, blocked")
 	for _, alias := range aliases {
-		err = r.SetAlias(alias)
-		utils.CheckError(ErrMigrateMsg, &err)
+		if err = r.SetAlias(alias); err != nil {
+			return err
+		}
 	}
 
 	// ввод заблокированных в БД
 	for _, pack := range blocked {
-		err = r.DisablePack(pack)
-		utils.CheckError(ErrMigrateMsg, &err)
+		if err = r.DisablePack(pack); err != nil {
+			return err
+		}
 	}
 	fmt.Println("Миграция завершена")
 	fmt.Println("\n\tТребуется индексация репозитория")
+	return nil
 }

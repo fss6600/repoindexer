@@ -1,18 +1,19 @@
-package proc
+package handler
 
 import (
 	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
-
-	"github.com/pmshoot/repoindexer/cmd/indexer/internal/utils"
 )
 
 // SetReglamentMode обрабатывает команду `regl`
 // активирует/деактивирует режим регламента репозитория
-func SetReglamentMode(repoPath, mode string) {
-	const errReglMsg = errMsg + ":packages::SetReglamentMode:"
+func SetReglamentMode(repoPath, mode string) error {
+	const (
+		reglOnMessage  string = "Режим регламента активирован [on]"
+		reglOffMessage string = "Режим регламента деактивирован [off]"
+	)
 	// проверка на наличие файла-флага, определение режима регламента
 	fRegl := filepath.Join(repoPath, fnReglament)
 	modeOn := reglIsSet(repoPath)
@@ -33,30 +34,49 @@ func SetReglamentMode(repoPath, mode string) {
 			fmt.Println(reglOnMessage, string(owner))
 			// активация регламента с записью информации кто активировал
 		} else {
-			err = ioutil.WriteFile(fRegl, utils.TaskOwnerInfo(), 0644)
-			utils.CheckError(fmt.Sprintf("%v", errReglMsg), &err)
+			err = ioutil.WriteFile(fRegl, TaskOwnerInfo(), 0644)
+			if err != nil {
+				return &internalError{
+					Text:   "ошибка установки режима регламента",
+					Caller: "Reglament::writeFile",
+					Err:    err,
+				}
+			}
 			fmt.Println(reglOnMessage)
 		}
 	// деактивация режима регламента
 	case "off":
 		// регламент активирован - удаляем файл
 		if modeOn {
-			err = os.Remove(fRegl)
-			utils.CheckError(fmt.Sprintf("%v", errReglMsg), &err)
+			if err = os.Remove(fRegl); err != nil {
+				return &internalError{
+					Text:   "ошибка снятия режима регламента",
+					Caller: "Reglament::removeFile",
+					Err:    err,
+				}
+			}
 		}
 		fmt.Println(reglOffMessage)
 	default:
-		panic(fmt.Sprintf("неверный режим регламента: %s", mode))
+		return &internalError{
+			Text:   fmt.Sprintf("неверный режим регламента: %s", mode),
+			Caller: "Reglament",
+		}
 	}
+	return nil
 }
 
 func reglIsSet(repo string) bool {
 	reglf := filepath.Join(repo, fnReglament)
-	return utils.FileExists(reglf)
+	return FileExists(reglf)
 }
 
-func checkRegl(repoPath string) {
+func checkRegl(repoPath string) error {
 	if !reglIsSet(repoPath) {
-		panic("не установлен режим регламента!")
+		return &internalError{
+			Text:   "не установлен режим регламента",
+			Caller: "Reglament::checkRegl",
+		}
 	}
+	return nil
 }

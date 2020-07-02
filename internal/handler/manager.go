@@ -1,7 +1,8 @@
-package obj
+package handler
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -10,30 +11,12 @@ import (
 	"time"
 
 	"github.com/mattn/go-sqlite3"
-	// use sqlite driver
-	// _ "github.com/mattn/go-sqlite3"
-	"github.com/pmshoot/repoindexer/cmd/indexer/internal/utils"
 )
-
-const (
-	fileDBName string = "index.db"
-	// IndexGZ индекс-файл
-	IndexGZ string = "index.gz"
-	// DBVersionMajor major ver DB
-	DBVersionMajor int64 = 1
-	// DBVersionMinor minor ver DB
-	DBVersionMinor int64 = 4
-)
-
-var err error
-
-// ErrAlias ошибка обработки псевдонима
-type ErrAlias error
 
 // NewRepoObj возвращает объект Repo
 func NewRepoObj(path string) (*Repo, error) {
 	if path == "" {
-		return nil, fmt.Errorf("не указан путь к репозиторию")
+		return nil, errors.New("не указан путь к репозиторию")
 	}
 	repo := new(Repo)
 	repo.path = path
@@ -48,8 +31,8 @@ func (r *Repo) Path() string {
 // OpenDB открывает подключение к БД
 func (r *Repo) OpenDB() error {
 	fp := pathDB(r.path)
-	if !utils.FileExists(fp) {
-		return fmt.Errorf("Репозиторий не инициализирован")
+	if !FileExists(fp) {
+		return errors.New("Репозиторий не инициализирован")
 	}
 	db, err := newConnection(fp)
 	if err != nil {
@@ -80,7 +63,7 @@ func (r *Repo) Close() error {
 	// упаковка данных, переиндексация
 	if r.db != nil {
 		if _, err := r.db.Exec("PRAGMA optimize;"); err != nil {
-			return fmt.Errorf("ошибка оптимизации БД: %v", err)
+			fmt.Printf("ошибка оптимизации БД: %v\n", err)
 		}
 		if err = r.db.Close(); err != nil {
 			return fmt.Errorf("ошибка закрытия БД: %v", err)
@@ -194,7 +177,7 @@ func (r *Repo) NoIndexedPacks() []string {
 func (r *Repo) ActivePacks() []string {
 	if len(r.actPacks) == 0 {
 		ch := make(chan string, 3)
-		go utils.DirList(r.Path(), ch)
+		go DirList(r.Path(), ch)
 		for name := range ch {
 			if r.PackIsBlocked(name) {
 				continue
@@ -464,7 +447,7 @@ func (r *Repo) HashSumPack(id int64) error {
 		_ = rows.Scan(&hash)
 		hTotal += hash
 	}
-	hash = utils.HashSum(hTotal)
+	hash = HashSum(hTotal)
 	res, err := r.db.Exec("UPDATE packages SET hash=? WHERE id=?;", hash, id)
 	if err != nil {
 		return fmt.Errorf("HashSumPack: %v", err)
@@ -511,7 +494,7 @@ func (r *Repo) Status() (*RepoStData, error) {
 
 	// количество пакетов в репозитории
 	ch := make(chan string)
-	go utils.DirList(r.Path(), ch)
+	go DirList(r.Path(), ch)
 	for range ch {
 		data.TotalCnt++
 	}
@@ -551,7 +534,7 @@ func (r *Repo) Status() (*RepoStData, error) {
 // List формирует и передает поканалу список проиндексированных пакетов с данными о статусе
 func (r *Repo) List(ch chan<- *ListData) {
 	dir := make(chan string)
-	go utils.DirList(r.Path(), dir)
+	go DirList(r.Path(), dir)
 	for name := range dir {
 		data := new(ListData)
 		alias := r.Alias(name)
@@ -635,7 +618,9 @@ func (r *Repo) VersionDB() (int64, int64, error) {
 // ExecFileSet фиксирует имя исполняемого файла пакета
 func (r *Repo) ExecFileSet(pack string, force bool) error {
 	id, err := r.PackageID(pack)
-	utils.CheckError(fmt.Sprintf("не найден пакет в БД: %v", pack), &err)
+	if err != nil {
+		return err
+	}
 
 	switch force { // force - принудительная замена
 	case false:
@@ -652,7 +637,10 @@ func (r *Repo) ExecFileSet(pack string, force bool) error {
 		}
 		fallthrough
 	case true:
-		execFile := defineExecFile(r, pack)
+		execFile, err := defineExecFile(r, pack)
+		if err != nil {
+			return err
+		}
 		res, err := r.db.Exec("UPDATE packages SET exec=? WHERE id=?;", execFile, id)
 		if err != nil {
 			return fmt.Errorf("ExecFileSet: %v", err)
@@ -668,7 +656,10 @@ func (r *Repo) ExecFileSet(pack string, force bool) error {
 // ExecFileDel удаляет информацию об исполняемом файле пакета
 func (r *Repo) ExecFileDel(pack string) error {
 	id, err := r.PackageID(pack)
-	utils.CheckError(fmt.Sprintf("не найден пакет в БД: %v", pack), &err)
+	if err != nil {
+		return err
+	}
+	// CheckError(fmt.Sprintf("не найден пакет в БД: %v", pack), &err)
 	res, err := r.db.Exec("UPDATE packages SET exec='noexec' WHERE id=?;", id)
 	if err != nil {
 		return fmt.Errorf("ExecFileDel: %v", err)
@@ -683,7 +674,10 @@ func (r *Repo) ExecFileDel(pack string) error {
 // ExecFileInfo возвращает информацию об исполняемом файле пакета
 func (r *Repo) ExecFileInfo(pack string) (string, error) {
 	id, err := r.PackageID(pack)
-	utils.CheckError(fmt.Sprintf("не найден пакет в БД: %v", pack), &err)
+	if err != nil {
+		return "", err
+	}
+	// CheckError(fmt.Sprintf("не найден пакет в БД: %v", pack), &err)
 	var execInDB string
 
 	if err := r.db.QueryRow(

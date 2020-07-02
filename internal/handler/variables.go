@@ -1,8 +1,51 @@
-package obj
+package handler
 
 import (
 	"database/sql"
+	"fmt"
 	"time"
+)
+
+// internalError структура возвращаемой ошибки из handler
+type internalError struct {
+	Text   string // текст ошибки
+	Caller string // вызвавший объект
+	Err    error  // оригинальная ошибка
+}
+
+func (e *internalError) Error() (msg string) {
+	if e.Caller != "" {
+		msg = fmt.Sprintf("%s: %s", e.Caller, e.Text)
+	} else {
+		msg = e.Text
+	}
+	if e.Err != nil {
+		msg += fmt.Sprintf("\noriginal: %v", e.Err)
+	}
+	return
+}
+
+var err error
+
+const (
+	fileDBName string = "index.db"
+	// IndexGZ индекс-файл
+	IndexGZ string = "index.gz"
+	// DBVersionMajor major ver DB
+	DBVersionMajor int64 = 1
+	// DBVersionMinor minor ver DB
+	DBVersionMinor int64 = 4
+)
+
+// ErrAlias ошибка обработки псевдонима
+type ErrAlias error
+
+// general
+const (
+	fnReglament = "__REGLAMENT__"
+	doPopMsg    = "\n\tВыгрузите данные в индекс-файл командой 'pop'\n"
+	doIndexMsg  = "\n\tПроиндексируйте пакеты командой 'index [...pacnames]'\n"
+	noChangeMsg = "Изменений нет\n"
 )
 
 // статусы пакета

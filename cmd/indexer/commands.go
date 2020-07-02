@@ -6,17 +6,19 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"os"
 	"path/filepath"
 	"time"
 
-	"github.com/pmshoot/repoindexer/cmd/indexer/internal/obj"
-	"github.com/pmshoot/repoindexer/cmd/indexer/internal/proc"
-	"github.com/pmshoot/repoindexer/cmd/indexer/internal/utils"
+	h "github.com/pmshoot/repoindexer/internal/handler"
 )
 
-var repoPath string
-var flagFullIndex, flagDebug, flagVersion bool
+var (
+	err                                   error
+	repoPath                              string
+	flagFullIndex, flagDebug, flagVersion bool
+)
 
 const tmplErrMsg = "main:"
 
@@ -28,6 +30,7 @@ type conf struct {
 }
 
 func init() {
+	log.SetFlags(0)
 	var rp string
 	if cnf, err := readConfFromJSON(); err == nil {
 		rp = cnf.Repo
@@ -38,12 +41,11 @@ func init() {
 	flag.BoolVar(&flagFullIndex, "f", false, "режим принудительной полной индексации")
 	flag.BoolVar(&flagVersion, "v", false, "версия программы")
 	flag.Usage = usage
-
 	flag.Parse()
 }
 
-// Run обрабатывает команды командной строки
-func Run() {
+// run обрабатывает команды командной строки
+func run() {
 	if flagVersion {
 		fmt.Println("Версия:", version)
 		return
@@ -51,23 +53,24 @@ func Run() {
 
 	// проверка на наличие пути к репозиторию
 	if repoPath == "" {
-		panic("не указан путь к репозиторию")
+		log.Fatalln("не указан путь к репозиторию")
 	}
 
 	// проверка на наличие команды и последующая обработка
 	if len(flag.Args()) == 0 {
-		panic("не указана команда")
+		log.Fatalln("не указана команда")
 	}
 
-	fmt.Println("установлен путь к репозиторию:", repoPath)
-	cmd := flag.Args()[0]
+	fmt.Println("репозиторий:", repoPath)
 
 	// обработка команд, не требующих подключения к БД
+	cmd := flag.Args()[0]
 	switch cmd {
 	// инициализация репозитория
 	case "init":
-		err := obj.InitDB(repoPath)
-		utils.CheckError(fmt.Sprintf("ошибка при инициализации репозитория '%v':", repoPath), &err)
+		if err = h.InitDB(repoPath); err != nil {
+			log.Fatalf("ошибка при инициализации репозитория '%s\n':", repoPath)
+		}
 		return // выходим, чтобы не инициализировать подключение к БД
 
 	// on|off режим регламента
@@ -78,18 +81,24 @@ func Run() {
 			mode = cmdRegl.Arg(0)
 		}
 		// установка режима регламента
-		proc.SetReglamentMode(repoPath, mode)
+		if err = h.SetReglamentMode(repoPath, mode); err != nil {
+			log.Fatal(err)
+		}
 		return // выходим, чтобы не инициализировать подключение к БД
 	}
 
 	// инициализация и подключение к БД
-	pRepo, err := obj.NewRepoObj(repoPath)
-	utils.CheckError(tmplErrMsg, &err)
-	err = pRepo.OpenDB()
-	utils.CheckError("", &err)
+	pRepo, err := h.NewRepoObj(repoPath)
+	if err != nil {
+		log.Fatal(err)
+	}
+	if err = pRepo.OpenDB(); err != nil {
+		log.Fatal(err)
+	}
 	defer func() {
-		err := pRepo.Close()
-		utils.CheckError(tmplErrMsg, &err)
+		if err = pRepo.Close(); err != nil {
+			log.Fatal(err)
+		}
 	}()
 
 	switch cmd {
@@ -103,11 +112,15 @@ func Run() {
 		if len(packs) == 0 {
 			packs = pRepo.ActivePacks() // активные
 		}
-		proc.Index(pRepo, flagFullIndex, packs)
+		if err = h.Index(pRepo, flagFullIndex, packs); err != nil {
+			log.Fatal(err)
+		}
 
 	// выгрузка данных индексации из БД в Index.gz
 	case "pop", "populate":
-		proc.Populate(pRepo)
+		if err = h.Populate(pRepo); err != nil {
+			log.Fatal(err)
+		}
 
 	// обработка исполняемых файлов пакетов
 	case "exec":
@@ -116,11 +129,13 @@ func Run() {
 		cmdExecFile := newFlagSet("execfile")
 
 		if len(cmdExecFile.Args()) == 0 {
-			panic("укажите одну из команд: check | set | del | show")
+			log.Fatal("укажите одну из команд: check | set | del | show")
 		}
 		cmd = cmdExecFile.Args()[0]
 		packs = cmdExecFile.Args()[1:]
-		proc.ExecFile(pRepo, cmd, packs)
+		if err = h.ExecFile(pRepo, cmd, packs); err != nil {
+			log.Fatal(err)
+		}
 
 	// активация/блокировка пакетов в репозитории
 	case "enable", "disable":
@@ -131,13 +146,16 @@ func Run() {
 			// список пакетов из stdin
 			packetsList = readDataFromStdin()
 			if len(packetsList) == 0 {
-				panic("укажите по крайней мере один пакет")
+				log.Fatal("укажите по крайней мере один пакет")
 			}
 		}
 		if cmd == "enable" {
-			proc.SetPackStatus(pRepo, obj.PackStatusActive, packetsList)
+			err = h.SetPackStatus(pRepo, h.PackStatusActive, packetsList)
 		} else {
-			proc.SetPackStatus(pRepo, obj.PackStatusBlocked, packetsList)
+			err = h.SetPackStatus(pRepo, h.PackStatusBlocked, packetsList)
+		}
+		if err != nil {
+			log.Fatal(err)
 		}
 
 	// присвоение/удаление/отображение псевдонимов
@@ -156,11 +174,13 @@ func Run() {
 				// from stdin
 				aliases = readDataFromStdin()
 				if len(aliases) == 0 {
-					panic("укажите по крайней мере 1 пару ПАКЕТ=ПСЕВДОНИМ")
+					log.Fatal("укажите по крайней мере 1 пару ПАКЕТ=ПСЕВДОНИМ")
 				}
 			}
 		}
-		proc.Alias(pRepo, cmd, aliases)
+		if err = h.Alias(pRepo, cmd, aliases); err != nil {
+			log.Fatal(err)
+		}
 
 	// вывод перечня и статус пакетов в репозитории
 	case "list":
@@ -171,13 +191,17 @@ func Run() {
 		} else {
 			cmd = cmdList.Args()[0]
 		}
-		proc.List(pRepo, cmd)
+		if err = h.List(pRepo, cmd); err != nil {
+			log.Fatal(err)
+		}
 
 	// упаковка и переиндексация данных в БД
 	case "clean":
 		fmt.Print("Упаковка БД: ")
-		err = pRepo.Clean()
-		utils.CheckError(tmplErrMsg, &err)
+		if err = pRepo.Clean(); err != nil {
+			fmt.Println()
+			log.Fatal(err)
+		}
 		fmt.Println("OK")
 
 	// очистка БД от данных
@@ -189,18 +213,24 @@ func Run() {
 		} else {
 			cmd = cmdClearDB.Args()[0]
 		}
-		proc.ClearDB(pRepo, cmd)
+		if err = h.ClearDB(pRepo, cmd); err != nil {
+			log.Fatal(err)
+		}
 
 	// вывод информации о репозитории
 	case "status":
-		proc.RepoStatus(pRepo)
+		if err = h.RepoStatus(pRepo); err != nil {
+			log.Fatal(err)
+		}
 
 	// миграция БД
 	case "migrate":
-		proc.MigrateDB(pRepo)
+		if err = h.MigrateDB(pRepo); err != nil {
+			log.Fatal(err)
+		}
 
 	default:
-		panic("команда не опознана")
+		log.Fatal("команда не опознана")
 	}
 }
 
@@ -232,17 +262,18 @@ func readDataFromStdin() []string {
 
 func newFlagSet(name string) *flag.FlagSet {
 	f := flag.NewFlagSet(name, flag.ErrorHandling(1))
-	err := f.Parse(flag.Args()[1:])
-	utils.CheckError(tmplErrMsg, &err)
+	if err = f.Parse(flag.Args()[1:]); err != nil {
+		log.Fatalf("Indexer: ошибка установки flagset %v", err)
+	}
 	return f
 }
 
 // проверка файла-конфигурации ,чтение настроек
-func readConfFromJSON() (cnf conf, err error) {
+func readConfFromJSON() (conf, error) {
 	curFilePath, _ := os.Executable()
 	curDir := filepath.Dir(curFilePath)
 	files, _ := filepath.Glob(filepath.Join(curDir, "*.conf"))
-
+	var cnf conf
 	if len(files) > 0 {
 		confFile := filepath.Clean(files[0])
 		buf, err := ioutil.ReadFile(confFile)
@@ -250,11 +281,43 @@ func readConfFromJSON() (cnf conf, err error) {
 			return cnf, err
 		}
 		err = json.Unmarshal(buf, &cnf)
-
 		switch err.(type) {
 		case *json.SyntaxError:
 			fmt.Println("неверный синтаксис файла настроек", err)
+		default:
+			return cnf, fmt.Errorf("ошибка чтения конфигурации - %v", err)
 		}
 	}
-	return cnf, err
+	return cnf, nil
+}
+
+var usage = func() {
+	fmt.Printf("Использование программы: %s [флаг] команда [параметр команды, ...]\n", os.Args[0])
+	printUsage()
+}
+
+func printUsage() {
+	flag.PrintDefaults()
+	fmt.Println("* - обязательные флаги")
+	fmt.Println("\nКоманды:")
+
+	commands := [][]string{
+		{"init", "инициализация репозитория"},
+		{"regl [on|off]", "статус, активация, деактивация режима регламента"},
+		{"index [packname, ...]", "индексирование репозитория или указанных пакетов"},
+		{"exec [check|set|del|show [packname]]", "поиск, установка, удаление, вывод исполняемого файла для пакета[ов]"},
+		{"pop", "выгрузка данных в индекс-файл"},
+		{"enable packname [packname, ...] | <(stdin)", "активация заблокированного пакета[ов] "},
+		{"disable packname [packname, ...] | <(stdin)", "блокировка пакета[ов]"},
+		{"alias [show] | [set packname=alias,... | <(stdin)] | [del alias,... | <(stdin)]]", "вывод, установка, удаление псевдонимов для пакетов"},
+		{"list", "вывод перечня и статуса пакетов в репозитории"},
+		{"status", "вывод информации о состоянии репозитория"},
+		{"migrate", "миграция данных БД при изменениии версии"},
+		{"clean", "упаковка и переиндексация данных в БД"},
+		{"cleardb index|alias|status|all", "очистка БД от данных индекса, псевдонимов, блокировок или всех данных"},
+	}
+
+	for _, comm := range commands {
+		fmt.Printf("  %v\n  - %v\n", comm[0], comm[1])
+	}
 }

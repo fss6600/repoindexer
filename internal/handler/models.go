@@ -1,4 +1,4 @@
-package obj
+package handler
 
 // from scripts/sql/initdb.sql
 

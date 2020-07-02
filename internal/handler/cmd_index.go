@@ -1,79 +1,93 @@
-package proc
+package handler
 
 import (
 	"fmt"
 	"path/filepath"
-
-	"github.com/pmshoot/repoindexer/cmd/indexer/internal/obj"
-	"github.com/pmshoot/repoindexer/cmd/indexer/internal/utils"
-)
-
-const (
-	errIndexMsg   = errMsg + ":index:"
-	errPackIndMsg = errIndexMsg + ":processPackIndex:"
 )
 
 // Index обработка команды `index` - индексация пакетов в репозитории
 // без параметров выполняет полную индексацию репозитория
 // при указании имен пакетов, выполняет индексацию указанных
 // имена пакетов содержащие пробел следует передавать в кавычках
-func Index(r *obj.Repo, fullmode bool, packs []string) {
-	err = r.CheckDBVersion()
-	utils.CheckError("", &err)
+func Index(r *Repo, fullmode bool, packs []string) error {
+	if err = r.CheckDBVersion(); err != nil {
+		return err
+	}
+	// флаг наличия изменений в пакете
 	var changed bool
-
-	checkRegl(r.Path())
+	// проверка установки режима регламента
+	if err = checkRegl(r.path); err != nil {
+		return err
+	}
+	// проверка пакета на блокировку
 	for _, pack := range packs {
 		if r.PackIsBlocked(pack) {
-			panic(fmt.Sprintf("пакет [ %v ] заблокирован", pack))
+			return &internalError{
+				Text:   fmt.Sprintf("пакет %q заблокирован", pack),
+				Caller: "Index",
+			}
 		}
 	}
-	err = r.SetPrepare()
-	utils.CheckError(fmt.Sprintf("%v:setprepare:", errIndexMsg), &err)
+	// проверка на готовность БД
+	if err = r.SetPrepare(); err != nil {
+		return err
+	}
 
 	for _, pack := range packs {
 		if pack == "" {
-			panic("задано пустое имя пакета")
+			return &internalError{
+				Text:   "задано пустое имя пакета",
+				Caller: "Index",
+			}
 		}
 		fmt.Println("[", pack, "]")
-		if processPackIndex(r, fullmode, pack) && !changed {
+		done, err := processPackIndex(r, fullmode, pack)
+		if err != nil {
+			return err
+		}
+		if done && !changed {
 			changed = true
 		}
 	}
 	fmt.Println()
-	err = r.CleanPacks()
-	utils.CheckError(fmt.Sprintf("%v:cleanpacks:", errIndexMsg), &err)
+	if err = r.CleanPacks(); err != nil {
+		return err
+	}
 
-	obj.ShowEmptyExecFiles(r)
+	// вывод данных о неустановленных исполняемых файлах
+	ShowEmptyExecFiles(r)
 
 	if changed {
 		fmt.Println(doPopMsg)
 	} else {
 		fmt.Println(noChangeMsg)
 	}
+	return nil
 }
 
 // processPackIndex обрабатывает (индексирует) файлы в указанном пакете
-func processPackIndex(r *obj.Repo, fullmode bool, pack string) bool {
+func processPackIndex(r *Repo, fullmode bool, pack string) (bool, error) {
 	var (
-		packID                   int64           // ID пакета
-		dbData, fInfo            *obj.FileInfo   // указатель на объект с данными файла
-		fsList, dbList           []*obj.FileInfo // список файлов пакета в БД
-		fsInd, dbInd             int             // counters
-		packChanged, fileChanged bool            // package has changes
-		err                      error           // error
-		fpRel                    string          // путь к файлу относительно пакета
+		packID                   int64       // ID пакета
+		dbData, fInfo            *FileInfo   // указатель на объект с данными файла
+		fsList, dbList           []*FileInfo // список файлов пакета в БД
+		fsInd, dbInd             int         // counters
+		packChanged, fileChanged bool        // package has changes
+		err                      error       // error
+		fpRel                    string      // путь к файлу относительно пакета
 	)
 
 	packID, err = r.PackageID(pack)
 	if err != nil { // нет такого пакета
-		packID, err = r.NewPackage(pack)
-		utils.CheckError(fmt.Sprintf("%v:%v:", errPackIndMsg, "NewPackage"), &err)
+		if packID, err = r.NewPackage(pack); err != nil {
+			return false, err
+		}
 	}
 
 	fsList = r.FilesPackRepo(pack)
-	dbList, err = r.FilesPackDB(packID)
-	utils.CheckError(fmt.Sprintf("%v:%v:", errPackIndMsg, "FilesPackDB"), &err)
+	if dbList, err = r.FilesPackDB(packID); err != nil {
+		return false, err
+	}
 
 	fsMaxInd := len(fsList) - 1
 	dbMaxInd := len(dbList) - 1
@@ -92,11 +106,14 @@ func processPackIndex(r *obj.Repo, fullmode bool, pack string) bool {
 			fpRel, _ = filepath.Rel(filepath.Join(r.Path(), pack), fInfo.Path)
 
 			fInfo.ID = packID
-			fInfo.Hash = getFileHash(fInfo.Path)
+			if fInfo.Hash, err = getFileHash(fInfo.Path); err != nil {
+				return false, err
+			}
 			fInfo.Path = fpRel
 
-			err = r.AddFile(fInfo)
-			utils.CheckError(fmt.Sprintf("%v", errPackIndMsg), &err)
+			if err = r.AddFile(fInfo); err != nil {
+				return false, err
+			}
 
 			fmt.Println("  +", fInfo.Path)
 			fsInd++
@@ -110,8 +127,9 @@ func processPackIndex(r *obj.Repo, fullmode bool, pack string) bool {
 		// пакета нет в репозитории - удаляем запись о файле из БД
 		if fsInd > fsMaxInd { // not in FS
 			dbData = dbList[dbInd]
-			err = r.RemoveFile(dbData)
-			utils.CheckError(fmt.Sprintf("%v:error compare files", errPackIndMsg), &err)
+			if err = r.RemoveFile(dbData); err != nil {
+				return false, err
+			}
 			fmt.Println("  -", dbData.Path)
 			// next file obj in db list
 			dbInd++
@@ -124,7 +142,7 @@ func processPackIndex(r *obj.Repo, fullmode bool, pack string) bool {
 
 		dbData = dbList[dbInd]
 		fInfo = fsList[fsInd]
-		fpRel, _ = filepath.Rel(filepath.Join(r.Path(), pack), fInfo.Path)
+		fpRel, _ = filepath.Rel(filepath.Join(r.path, pack), fInfo.Path)
 
 		// Вариант2: Данные пакета изменились
 		// сверка данных о файле в БД и в репозитории
@@ -135,10 +153,13 @@ func processPackIndex(r *obj.Repo, fullmode bool, pack string) bool {
 			if fullmode || fileChanged {
 				dbData.Size = fInfo.Size
 				dbData.MDate = fInfo.MDate
-				dbData.Hash = getFileHash(fInfo.Path)
+				if dbData.Hash, err = getFileHash(fInfo.Path); err != nil {
+					return false, err
+				}
 
-				err = r.UpdateFileData(dbData)
-				utils.CheckError(fmt.Sprintf("%v:error update file data in DB", errPackIndMsg), &err)
+				if err = r.UpdateFileData(dbData); err != nil {
+					return false, err
+				}
 
 				fmt.Println("  .", fpRel)
 
@@ -153,11 +174,14 @@ func processPackIndex(r *obj.Repo, fullmode bool, pack string) bool {
 		} else if fpRel < dbData.Path {
 			// добавляем запись о файле в БД
 			fInfo.ID = packID
-			fInfo.Hash = getFileHash(fInfo.Path)
+			if fInfo.Hash, err = getFileHash(fInfo.Path); err != nil {
+				return false, err
+			}
 			fInfo.Path = fpRel
 
-			err = r.AddFile(fInfo)
-			utils.CheckError(fmt.Sprintf("%v", errPackIndMsg), &err)
+			if err = r.AddFile(fInfo); err != nil {
+				return false, err
+			}
 
 			fmt.Println("  +", fpRel)
 
@@ -169,8 +193,9 @@ func processPackIndex(r *obj.Repo, fullmode bool, pack string) bool {
 			// удаляем запись о файле из БД
 			// not in FS, in db
 		} else if fpRel > dbData.Path {
-			err = r.RemoveFile(dbData)
-			utils.CheckError(fmt.Sprintf("%v", errPackIndMsg), &err)
+			if err = r.RemoveFile(dbData); err != nil {
+				return false, err
+			}
 
 			fmt.Println("  -", dbData.Path)
 
@@ -179,21 +204,28 @@ func processPackIndex(r *obj.Repo, fullmode bool, pack string) bool {
 			}
 			dbInd++
 		} else {
-			panic(fmt.Sprintf("%v something goes wrong", errPackIndMsg))
+			return false, &internalError{
+				Text:   "что-то пошло не так при обходе списков файлов",
+				Caller: "Index",
+			}
+
 		}
 		continue
 	}
 
 	// пересчитываем контрольную сумму пакета при наличии изменений файлов
 	if packChanged {
-		err = r.HashSumPack(packID)
-		utils.CheckError(fmt.Sprintf("%v", errPackIndMsg), &err)
+		if err = r.HashSumPack(packID); err != nil {
+			return false, err
+		}
 	}
-	return packChanged
+	return packChanged, nil
 }
 
-func getFileHash(fPath string) string {
-	hash, err := utils.HashSumFile(fPath)
-	utils.CheckError(fmt.Sprintf("%v:error hashsum calculate", errPackIndMsg), &err)
-	return hash
+func getFileHash(fPath string) (string, error) {
+	hash, err := HashSumFile(fPath)
+	if err != nil {
+		return "", err
+	}
+	return hash, nil
 }
