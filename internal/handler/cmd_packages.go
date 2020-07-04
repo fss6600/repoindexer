@@ -11,11 +11,11 @@ func SetPackStatus(r *Repo, status int, packs []string) error {
 	// активация пакетов
 	case PackStatusActive:
 		for _, pack := range packs {
-			if !r.PackIsBlocked(pack) {
+			if !r.packIsBlocked(pack) {
 				fmt.Printf("[ %v ] уже в актуальном состоянии\n", pack)
 				continue
 			}
-			if err = r.EnablePack(pack); err != nil {
+			if err = r.enablePack(pack); err != nil {
 				return err
 			}
 			done = true
@@ -27,20 +27,20 @@ func SetPackStatus(r *Repo, status int, packs []string) error {
 	// блокирование пакетов
 	case PackStatusBlocked:
 		for _, pack := range packs {
-			if r.PackIsBlocked(pack) {
+			if r.packIsBlocked(pack) {
 				fmt.Printf("[ %v ] уже заблокирован\n", pack)
 				continue
 			}
-			if !r.PackIsActive(pack) {
+			if !r.packIsActive(pack) {
 				fmt.Printf("[ %v ] не найден\n", pack)
 				continue
 			}
-			err = r.DisablePack(pack)
+			err = r.disablePack(pack)
 			done = true
 		}
 		// очистка БД от данных заблокированных пакетов
 		if done {
-			if err = r.CleanPacks(); err != nil {
+			if err = r.cleanPacks(); err != nil {
 				return err
 			}
 			fmt.Println(doPopMsg)

@@ -21,7 +21,7 @@ func ExecFile(r *Repo, cmd string, packs []string) error {
 	switch cmd {
 	case "check", "set":
 		if packsCount == 0 && cmd == "set" {
-			if !UserAccept("Обработать данные об исполняемом файле во всех пакетах?") {
+			if !userAccept("Обработать данные об исполняемом файле во всех пакетах?") {
 				return nil
 			}
 		}
@@ -30,19 +30,19 @@ func ExecFile(r *Repo, cmd string, packs []string) error {
 		}
 		fmt.Print("Проверка (установка) исполняемого файла для пакета:\n\n")
 		for _, pack := range packs {
-			if err = r.ExecFileSet(pack, force); err != nil {
+			if err = r.execFileSet(pack, force); err != nil {
 				return err
 			}
 		}
 	case "del":
 		if packsCount == 0 {
-			if !UserAccept("Удалить данные об исполняемом файле во всех пакетах?") {
+			if !userAccept("Удалить данные об исполняемом файле во всех пакетах?") {
 				return nil
 			}
 			packs = r.ActivePacks()
 		}
 		for _, pack := range packs {
-			if err = r.ExecFileDel(pack); err != nil {
+			if err = r.execFileDel(pack); err != nil {
 				return err
 			}
 		}
@@ -52,7 +52,7 @@ func ExecFile(r *Repo, cmd string, packs []string) error {
 		}
 
 		for _, pack := range packs {
-			execFile, err := r.ExecFileInfo(pack)
+			execFile, err := r.execFileInfo(pack)
 			if err != nil {
 				return err
 			}

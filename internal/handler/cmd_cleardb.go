@@ -18,11 +18,11 @@ func ClearDB(r *Repo, cmd string) error {
 	}
 	switch cmd {
 	case "index", "all":
-		if !UserAccept(msg) {
+		if !userAccept(msg) {
 			return nil
 		}
 		fmt.Print("Очистка данных индексации пакетов...")
-		if err = r.DBCleanPackages(); err != nil {
+		if err = r.cleanPackagesDB(); err != nil {
 			return err
 		}
 		fmt.Println("OK")
@@ -31,11 +31,11 @@ func ClearDB(r *Repo, cmd string) error {
 		}
 		fallthrough
 	case "alias":
-		if cmd != "all" && !UserAccept("Удаляются данные псевдонимов из БД") {
+		if cmd != "all" && !userAccept("Удаляются данные псевдонимов из БД") {
 			return nil
 		}
 		fmt.Print("Очистка данных псевдонимов...")
-		if err = r.DBCleanAliases(); err != nil {
+		if err = r.cleanAliasesDB(); err != nil {
 			return err
 		}
 		fmt.Println("OK")
@@ -44,11 +44,11 @@ func ClearDB(r *Repo, cmd string) error {
 		}
 		fallthrough
 	case "status":
-		if cmd != "all" && !UserAccept("Удаляются данные блокировок из БД") {
+		if cmd != "all" && !userAccept("Удаляются данные блокировок из БД") {
 			return nil
 		}
 		fmt.Print("Очистка данных блокировки...")
-		if err = r.DBCleanStatus(); err != nil {
+		if err = r.cleanStatusDB(); err != nil {
 			return err
 		}
 		fmt.Println("OK")

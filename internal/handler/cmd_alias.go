@@ -22,7 +22,7 @@ func Alias(r *Repo, cmd string, aliases []string) error {
 					Caller: "Alias",
 				}
 			}
-			if err = r.SetAlias(alias); err != nil {
+			if err = r.setAlias(alias); err != nil {
 				return err
 			}
 		}
@@ -40,14 +40,14 @@ func Alias(r *Repo, cmd string, aliases []string) error {
 					Caller: "Alias",
 				}
 			}
-			if err = r.DelAlias(alias); err != nil {
+			if err = r.delAlias(alias); err != nil {
 				return err
 			}
 		}
 		fmt.Println(doPopMsg)
 	case "", "show":
 		// show alias info
-		aliases := r.Aliases()
+		aliases := r.aliases()
 		if len(aliases) == 0 {
 			fmt.Println("Список псевдонимов пуст")
 		} else {

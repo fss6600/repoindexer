@@ -12,7 +12,7 @@ func List(r *Repo, cmd string) error {
 		ch := make(chan *ListData)
 		fmt.Printf(tmplListOut, "СТАТ", "ПАКЕТ (ПСЕВДОНИМ)")
 		fmt.Println("------", "-----------------")
-		go r.List(ch)
+		go r.listIndexedPacks(ch)
 		for data := range ch {
 			switch data.Status {
 			case PackStatusBlocked:
@@ -24,15 +24,15 @@ func List(r *Repo, cmd string) error {
 			}
 		}
 	case "indexed":
-		for _, pack := range r.Packages() {
+		for _, pack := range r.packages() {
 			fmt.Println(pack)
 		}
 	case "noindexed":
-		for _, pack := range r.NoIndexedPacks() {
+		for _, pack := range r.notIndexedPacks() {
 			fmt.Println(pack)
 		}
 	case "blocked":
-		for _, pack := range r.DisabledPacks() {
+		for _, pack := range r.disabledPacks() {
 			fmt.Println(pack)
 		}
 	default:

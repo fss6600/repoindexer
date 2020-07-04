@@ -34,7 +34,7 @@ func (r *Repo) Path() string {
 // OpenDB открывает подключение к БД
 func (r *Repo) OpenDB() error {
 	fp := pathDB(r.path)
-	if !FileExists(fp) {
+	if !fileExists(fp) {
 		return &InternalError{
 			Text:   "Репозиторий не инициализирован",
 			Caller: "Manager::OpenDB",
@@ -108,8 +108,8 @@ func (r *Repo) Clean() error {
 	return nil
 }
 
-// PackageID возвращает ID пакета
-func (r *Repo) PackageID(pack string) (int64, error) {
+// packageID возвращает ID пакета
+func (r *Repo) packageID(pack string) (int64, error) {
 	var id int64
 	// if err = r.db.QueryRow("SELECT id FROM packages WHERE name=?;", pack).Scan(&id); err == sql.ErrNoRows {
 	if err = r.db.QueryRow("SELECT id FROM packages WHERE name=?;", pack).Scan(&id); err != nil {
@@ -122,8 +122,8 @@ func (r *Repo) PackageID(pack string) (int64, error) {
 	return id, nil
 }
 
-// NewPackage создает запись нового пакета и возвращает его ID
-func (r *Repo) NewPackage(name string) (id int64, err error) {
+// newPackage создает запись нового пакета и возвращает его ID
+func (r *Repo) newPackage(name string) (id int64, err error) {
 	res, err := r.db.Exec("INSERT INTO packages ('name', 'hash') VALUES (?, 0);", name)
 	if err != nil {
 		return 0, &InternalError{
@@ -136,14 +136,14 @@ func (r *Repo) NewPackage(name string) (id int64, err error) {
 	return id, nil
 }
 
-// Alias возвращает псевдоним пакета при наличии
-func (r *Repo) Alias(pack string) (alias string) {
+// alias возвращает псевдоним пакета при наличии
+func (r *Repo) alias(pack string) (alias string) {
 	_ = r.db.QueryRow("SELECT alias FROM aliases WHERE Name=?;", pack).Scan(&alias)
 	return
 }
 
-// Aliases возвращает срез срезов (пар) псевдоним-пакет
-func (r *Repo) Aliases() [][]string {
+// aliases возвращает срез срезов (пар) псевдоним-пакет
+func (r *Repo) aliases() [][]string {
 	var aliases [][]string
 	var alias, name string
 	rows, _ := r.db.Query("SELECT alias, Name FROM aliases ORDER BY alias;")
@@ -157,12 +157,12 @@ func (r *Repo) Aliases() [][]string {
 	return aliases
 }
 
-// SetAlias устанавливает псевдоним для пакета при отсутствии уже установленного псевдонима
+// setAlias устанавливает псевдоним для пакета при отсутствии уже установленного псевдонима
 // и при наличии актуального пакета
-func (r *Repo) SetAlias(alias []string) error {
+func (r *Repo) setAlias(alias []string) error {
 	pck := alias[0]
 	als := alias[1]
-	if !r.PackIsActive(pck) {
+	if !r.packIsActive(pck) {
 		return &InternalError{
 			Text:   fmt.Sprintf("пакет %q не найден или заблокирован", pck),
 			Caller: "Manager::SetAlias",
@@ -200,8 +200,8 @@ func (r *Repo) SetAlias(alias []string) error {
 	return nil
 }
 
-// DelAlias удалает псевдоним
-func (r *Repo) DelAlias(alias string) error {
+// delAlias удалает псевдоним
+func (r *Repo) delAlias(alias string) error {
 	if res, err := r.db.Exec("DELETE FROM aliases WHERE alias=?;", alias); err != nil {
 		return &InternalError{
 			Text:   "ошибка удаления псевдонима",
@@ -219,11 +219,11 @@ func (r *Repo) DelAlias(alias string) error {
 	return nil
 }
 
-// NoIndexedPacks возвращает список не проиндексированных пакетов
-func (r *Repo) NoIndexedPacks() []string {
+// notIndexedPacks возвращает список не проиндексированных пакетов
+func (r *Repo) notIndexedPacks() []string {
 	lst := make([]string, 0)
 	for _, pack := range r.ActivePacks() {
-		if !r.PackIsIndexed(pack) {
+		if !r.packIsIndexed(pack) {
 			lst = append(lst, pack)
 		}
 	}
@@ -235,9 +235,9 @@ func (r *Repo) NoIndexedPacks() []string {
 func (r *Repo) ActivePacks() []string {
 	if len(r.actPacks) == 0 {
 		ch := make(chan string, 3)
-		go DirList(r.path, ch)
+		go dirList(r.path, ch)
 		for name := range ch {
-			if r.PackIsBlocked(name) {
+			if r.packIsBlocked(name) {
 				continue
 			} else {
 				r.actPacks = append(r.actPacks, name)
@@ -247,8 +247,8 @@ func (r *Repo) ActivePacks() []string {
 	return r.actPacks
 }
 
-// DisabledPacks кэширует и возвращает список заблокированных пакетов репозитория
-func (r *Repo) DisabledPacks() []string {
+// disabledPacks кэширует и возвращает список заблокированных пакетов репозитория
+func (r *Repo) disabledPacks() []string {
 	if len(r.disPacks) == 0 {
 		rows, err := r.db.Query("SELECT name FROM excludes;")
 		if err != nil {
@@ -264,9 +264,9 @@ func (r *Repo) DisabledPacks() []string {
 	return r.disPacks
 }
 
-// HashedPackages собирает данные о пакетах в БД в структуру HashedPackData
+// hashedPackages собирает данные о пакетах в БД в структуру HashedPackData
 // и передает по каналу
-func (r *Repo) HashedPackages(packs chan HashedPackData) error {
+func (r *Repo) hashedPackages(packs chan HashedPackData) error {
 	defer close(packs)
 	rows, err := r.db.Query("SELECT id, name, hash, exec FROM packages ORDER BY name;")
 	if err == sql.ErrNoRows {
@@ -291,9 +291,9 @@ func (r *Repo) HashedPackages(packs chan HashedPackData) error {
 				Err:    err,
 			}
 		}
-		pData.Alias = r.Alias(pData.Name)
+		pData.Alias = r.alias(pData.Name)
 
-		if filesPackDB, err = r.FilesPackDB(pData.ID); err != nil {
+		if filesPackDB, err = r.filesPackDB(pData.ID); err != nil {
 			return err
 		}
 		files := map[string]string{}
@@ -307,8 +307,8 @@ func (r *Repo) HashedPackages(packs chan HashedPackData) error {
 	return nil
 }
 
-// FilesPackRepo возвращает список файлов указанного пакета в репозитории
-func (r *Repo) FilesPackRepo(pack string) []*FileInfo {
+// filesPackRepo возвращает список файлов указанного пакета в репозитории
+func (r *Repo) filesPackRepo(pack string) []*FileInfo {
 	path := filepath.Join(r.path, pack)   // base Path repopath/packname
 	fInfoList := make([]*FileInfo, 0, 50) // reserve place for ~50 files
 	// unWanted, _ := regexp.Compile(`(.*[Tt]humb[s]?\.db)|(^~.*)`)
@@ -327,8 +327,8 @@ func (r *Repo) FilesPackRepo(pack string) []*FileInfo {
 	return fInfoList
 }
 
-// FilesPackDB возвращает список файлов пакета имеющихся в БД
-func (r *Repo) FilesPackDB(id int64) ([]*FileInfo, error) {
+// filesPackDB возвращает список файлов пакета имеющихся в БД
+func (r *Repo) filesPackDB(id int64) ([]*FileInfo, error) {
 	rows, err := r.db.Query("SELECT id, path, size, mdate, hash FROM files WHERE package_id=? ORDER BY path;", id)
 	if err != nil {
 		return nil, &InternalError{
@@ -354,9 +354,9 @@ func (r *Repo) FilesPackDB(id int64) ([]*FileInfo, error) {
 	return pFileInfoList, nil
 }
 
-// PackIsIndexed определяет проиндексирован ли пакет
-func (r *Repo) PackIsIndexed(name string) bool {
-	for _, fn := range r.Packages() {
+// packIsIndexed определяет проиндексирован ли пакет
+func (r *Repo) packIsIndexed(name string) bool {
+	for _, fn := range r.packages() {
 		if name == fn {
 			return true
 		}
@@ -364,9 +364,9 @@ func (r *Repo) PackIsIndexed(name string) bool {
 	return false
 }
 
-// PackIsBlocked проверка пакета на блокировку
-func (r *Repo) PackIsBlocked(name string) bool {
-	for _, fn := range r.DisabledPacks() {
+// packIsBlocked проверка пакета на блокировку
+func (r *Repo) packIsBlocked(name string) bool {
+	for _, fn := range r.disabledPacks() {
 		if name == fn {
 			return true
 		}
@@ -374,8 +374,8 @@ func (r *Repo) PackIsBlocked(name string) bool {
 	return false
 }
 
-// PackIsActive проверка отсутствия у пакета блокировки
-func (r *Repo) PackIsActive(pack string) bool {
+// packIsActive проверка отсутствия у пакета блокировки
+func (r *Repo) packIsActive(pack string) bool {
 	for _, fp := range r.ActivePacks() {
 		if fp == pack {
 			return true
@@ -384,8 +384,8 @@ func (r *Repo) PackIsActive(pack string) bool {
 	return false
 }
 
-// AddFileData добавляет данные файла пакета в БД при обнаружении в репозитории
-func (r *Repo) AddFileData(fInfo *FileInfo) error {
+// addFileData добавляет данные файла пакета в БД при обнаружении в репозитории
+func (r *Repo) addFileData(fInfo *FileInfo) error {
 	if res, err := r.stmtAddFile.Exec(fInfo.ID, fInfo.Path, fInfo.Size, fInfo.MDate, fInfo.Hash); err != nil {
 		return &InternalError{
 			Text:   "ошибка добавления файла",
@@ -402,8 +402,8 @@ func (r *Repo) AddFileData(fInfo *FileInfo) error {
 	return nil
 }
 
-// UpdateFileData обновляет данные о файде в пакете при изменении в репозитории
-func (r *Repo) UpdateFileData(fd *FileInfo) error {
+// updateFileData обновляет данные о файде в пакете при изменении в репозитории
+func (r *Repo) updateFileData(fd *FileInfo) error {
 	if res, err := r.stmtUpdFile.Exec(fd.Size, fd.MDate, fd.Hash, fd.ID); err != nil {
 		return &InternalError{
 			Text:   "ошибка обновления файла",
@@ -420,8 +420,8 @@ func (r *Repo) UpdateFileData(fd *FileInfo) error {
 	return nil
 }
 
-// RemoveFileData удаляет данные о файле из БД при отсутствии в репозитории
-func (r *Repo) RemoveFileData(fInfo *FileInfo) error {
+// removeFileData удаляет данные о файле из БД при отсутствии в репозитории
+func (r *Repo) removeFileData(fInfo *FileInfo) error {
 	if res, err := r.stmtDelFile.Exec(fInfo.ID); err != nil {
 		return &InternalError{
 			Text:   "ошибка обновления файла",
@@ -438,16 +438,16 @@ func (r *Repo) RemoveFileData(fInfo *FileInfo) error {
 	return nil
 }
 
-// CleanPacks сбрасывает кэш с данными об активных, индексированных и блокированных пакетах
+// cleanPacks сбрасывает кэш с данными об активных, индексированных и блокированных пакетах
 // при команде об активации или блокировке
-func (r *Repo) CleanPacks() error {
+func (r *Repo) cleanPacks() error {
 	// clean cached lists
 	r.actPacks = []string{}
 	r.disPacks = []string{}
 	r.indPacks = []string{}
-	for _, pack := range r.Packages() { // проход по списку пакетов в БД
-		if !r.PackIsActive(pack) {
-			if err = r.RemovePack(pack); err != nil {
+	for _, pack := range r.packages() { // проход по списку пакетов в БД
+		if !r.packIsActive(pack) {
+			if err = r.removePack(pack); err != nil {
 				return err
 			}
 		}
@@ -455,8 +455,8 @@ func (r *Repo) CleanPacks() error {
 	return nil
 }
 
-// Packages возвращает список проиндексированных пакетов
-func (r *Repo) Packages() []string {
+// packages возвращает список проиндексированных пакетов
+func (r *Repo) packages() []string {
 	var packs []string
 	var name string
 	rows, _ := r.db.Query("SELECT name FROM packages ORDER BY Name;")
@@ -468,8 +468,8 @@ func (r *Repo) Packages() []string {
 	return packs
 }
 
-// DisablePack блокирует пакет
-func (r *Repo) DisablePack(pack string) error {
+// disablePack блокирует пакет
+func (r *Repo) disablePack(pack string) error {
 
 	res, err := r.db.Exec("INSERT INTO excludes VALUES (?);", pack)
 	if err != nil {
@@ -490,8 +490,8 @@ func (r *Repo) DisablePack(pack string) error {
 	return nil
 }
 
-// EnablePack активирует пакет
-func (r *Repo) EnablePack(pack string) error {
+// enablePack активирует пакет
+func (r *Repo) enablePack(pack string) error {
 	res, err := r.db.Exec("DELETE FROM excludes WHERE Name=?;", pack)
 	if err != nil {
 		return &InternalError{
@@ -511,8 +511,8 @@ func (r *Repo) EnablePack(pack string) error {
 	return nil
 }
 
-// RemovePack удаляет данные о пакете
-func (r *Repo) RemovePack(pack string) error {
+// removePack удаляет данные о пакете
+func (r *Repo) removePack(pack string) error {
 	res, err := r.db.Exec("DELETE FROM packages WHERE Name=?;", pack)
 	if err != nil {
 		return &InternalError{
@@ -532,8 +532,8 @@ func (r *Repo) RemovePack(pack string) error {
 	return nil
 }
 
-// DBCleanPackages удаляет все данные о пакетах
-func (r *Repo) DBCleanPackages() error {
+// cleanPackagesDB удаляет все данные о пакетах
+func (r *Repo) cleanPackagesDB() error {
 	_, err := r.db.Exec("DELETE FROM packages;")
 	if err != nil {
 		return &InternalError{
@@ -545,8 +545,8 @@ func (r *Repo) DBCleanPackages() error {
 	return nil
 }
 
-// DBCleanAliases удаляет все данные о псевдонимах
-func (r *Repo) DBCleanAliases() error {
+// cleanAliasesDB удаляет все данные о псевдонимах
+func (r *Repo) cleanAliasesDB() error {
 	_, err := r.db.Exec("DELETE FROM aliases;")
 	if err != nil {
 		return &InternalError{
@@ -558,8 +558,8 @@ func (r *Repo) DBCleanAliases() error {
 	return nil
 }
 
-// DBCleanStatus удаляет все данные о блокировках
-func (r *Repo) DBCleanStatus() error {
+// cleanStatusDB удаляет все данные о блокировках
+func (r *Repo) cleanStatusDB() error {
 	_, err := r.db.Exec("DELETE FROM excludes;")
 	if err != nil {
 		return &InternalError{
@@ -571,8 +571,8 @@ func (r *Repo) DBCleanStatus() error {
 	return nil
 }
 
-// HashSumPack подсчет контрольной суммы пакета по основанию сумм файлов
-func (r *Repo) HashSumPack(id int64) error {
+// hashSumPack подсчет контрольной суммы пакета по основанию сумм файлов
+func (r *Repo) hashSumPack(id int64) error {
 	var hash, hTotal string
 	rows, _ := r.db.Query("SELECT hash FROM files WHERE package_id=?;", id)
 	defer rows.Close()
@@ -580,7 +580,7 @@ func (r *Repo) HashSumPack(id int64) error {
 		_ = rows.Scan(&hash)
 		hTotal += hash
 	}
-	hash = HashSum(hTotal)
+	hash = hashSum(hTotal)
 	res, err := r.db.Exec("UPDATE packages SET hash=? WHERE id=?;", hash, id)
 	if err != nil {
 		return &InternalError{
@@ -599,8 +599,8 @@ func (r *Repo) HashSumPack(id int64) error {
 	return nil
 }
 
-// SetPrepare компилирует SQL шаблоны запросов для ускорения обработки данных
-func (r *Repo) SetPrepare() error {
+// setPrepare компилирует SQL шаблоны запросов для ускорения обработки данных
+func (r *Repo) setPrepare() error {
 	//
 	sqlExpr := "INSERT INTO files ('package_id', 'path', 'size', 'mdate', 'hash') VALUES (?, ?, ?, ?, ?);"
 	r.stmtAddFile, err = r.db.Prepare(sqlExpr)
@@ -632,8 +632,8 @@ func (r *Repo) SetPrepare() error {
 	return nil
 }
 
-// Status выводит информацию о состоянии репозитория
-func (r *Repo) Status() (*RepoStData, error) {
+// repoStatus выводит информацию о состоянии репозитория
+func (r *Repo) repoStatus() (*RepoStData, error) {
 	data := new(RepoStData)
 	// количество активных пакетов
 	if err = r.db.QueryRow("SELECT COUNT() FROM packages;").Scan(&data.IndexedCnt); err != nil {
@@ -655,7 +655,7 @@ func (r *Repo) Status() (*RepoStData, error) {
 
 	// количество пакетов в репозитории
 	ch := make(chan string)
-	go DirList(r.Path(), ch)
+	go dirList(r.Path(), ch)
 	for range ch {
 		data.TotalCnt++
 	}
@@ -692,22 +692,22 @@ func (r *Repo) Status() (*RepoStData, error) {
 	return data, nil
 }
 
-// List формирует и передает поканалу список проиндексированных пакетов с данными о статусе
-func (r *Repo) List(ch chan<- *ListData) {
+// listIndexedPacks формирует и передает поканалу список проиндексированных пакетов с данными о статусе
+func (r *Repo) listIndexedPacks(ch chan<- *ListData) {
 	dir := make(chan string)
-	go DirList(r.Path(), dir)
+	go dirList(r.Path(), dir)
 	for name := range dir {
 		data := new(ListData)
-		alias := r.Alias(name)
+		alias := r.alias(name)
 		if alias != "" {
 			data.Name = fmt.Sprintf("%v (%v)", name, alias)
 		} else {
 			data.Name = name
 		}
-		if r.PackIsBlocked(name) {
+		if r.packIsBlocked(name) {
 			// блок
 			data.Status = PackStatusBlocked
-		} else if r.PackIsIndexed(name) {
+		} else if r.packIsIndexed(name) {
 			// актл
 			data.Status = PackStatusActive
 		} else {
@@ -743,9 +743,9 @@ func (r *Repo) checkDB() error {
 	return nil
 }
 
-// CheckDBVersion проверка соответствия версии БД репозитория перед индексацией
-func (r *Repo) CheckDBVersion() error {
-	vmaj, vmin, err := r.VersionDB()
+// checkDBVersion проверка соответствия версии БД репозитория перед индексацией
+func (r *Repo) checkDBVersion() error {
+	vmaj, vmin, err := r.versionDB()
 	if err != nil {
 		return err
 	} // todo - миграцию при поднятии версии программы
@@ -769,8 +769,8 @@ func (r *Repo) CheckDBVersion() error {
 	return nil
 }
 
-// EmptyExecFilesList возвращает список пакетов с пустыми значениями данных об исполняемых файлах
-func (r *Repo) EmptyExecFilesList() []string {
+// emptyExecFilesList возвращает список пакетов с пустыми значениями данных об исполняемых файлах
+func (r *Repo) emptyExecFilesList() []string {
 	var name string
 	var emptyList []string
 
@@ -783,8 +783,8 @@ func (r *Repo) EmptyExecFilesList() []string {
 	return emptyList
 }
 
-// VersionDB возвращает версию структуры БД
-func (r *Repo) VersionDB() (int64, int64, error) {
+// versionDB возвращает версию структуры БД
+func (r *Repo) versionDB() (int64, int64, error) {
 	var vmaj, vmin int64
 	err := r.db.QueryRow("SELECT vers_major, vers_minor FROM info WHERE id=1;").Scan(&vmaj, &vmin)
 	if err != nil {
@@ -796,9 +796,9 @@ func (r *Repo) VersionDB() (int64, int64, error) {
 	return vmaj, vmin, nil
 }
 
-// ExecFileSet фиксирует имя исполняемого файла пакета
-func (r *Repo) ExecFileSet(pack string, force bool) error {
-	id, err := r.PackageID(pack)
+// execFileSet фиксирует имя исполняемого файла пакета
+func (r *Repo) execFileSet(pack string, force bool) error {
+	id, err := r.packageID(pack)
 	if err != nil {
 		return err
 	}
@@ -846,9 +846,9 @@ func (r *Repo) ExecFileSet(pack string, force bool) error {
 	return nil
 }
 
-// ExecFileDel удаляет информацию об исполняемом файле пакета
-func (r *Repo) ExecFileDel(pack string) error {
-	id, err := r.PackageID(pack)
+// execFileDel удаляет информацию об исполняемом файле пакета
+func (r *Repo) execFileDel(pack string) error {
+	id, err := r.packageID(pack)
 	if err != nil {
 		return err
 	}
@@ -872,9 +872,9 @@ func (r *Repo) ExecFileDel(pack string) error {
 	return nil
 }
 
-// ExecFileInfo возвращает информацию об исполняемом файле пакета
-func (r *Repo) ExecFileInfo(pack string) (string, error) {
-	id, err := r.PackageID(pack)
+// execFileInfo возвращает информацию об исполняемом файле пакета
+func (r *Repo) execFileInfo(pack string) (string, error) {
+	id, err := r.packageID(pack)
 	if err != nil {
 		return "", err
 	}
@@ -894,9 +894,9 @@ func (r *Repo) ExecFileInfo(pack string) (string, error) {
 	return execInDB, nil
 }
 
-// CheckEmptyExecFiles проверяет на наличие не установленных исполняемых файлах пакетов в репозитории
-func (r *Repo) CheckEmptyExecFiles() error {
-	if len(r.EmptyExecFilesList()) > 0 {
+// checkEmptyExecFiles проверяет на наличие не установленных исполняемых файлах пакетов в репозитории
+func (r *Repo) checkEmptyExecFiles() error {
+	if len(r.emptyExecFilesList()) > 0 {
 		return &InternalError{
 			Text: "\n\tТребуется определить исполняемые файлы\n\t" +
 				"Запустите программу с командой 'exec check'\n",

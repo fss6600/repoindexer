@@ -4,10 +4,8 @@ import (
 	"bufio"
 	"crypto/sha1"
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
@@ -16,27 +14,27 @@ import (
 	"strings"
 )
 
-// FileExists проверяет наличие файла на диске
-func FileExists(fp string) bool {
+// fileExists проверяет наличие файла на диске
+func fileExists(fp string) bool {
 	_, err := os.Stat(fp)
 	return err == nil
 }
 
-// TaskOwnerInfo возвращает данные IP,.. инициатора работ в репозитории
-func TaskOwnerInfo() []byte {
+// taskOwnerInfo возвращает данные IP,.. инициатора работ в репозитории
+func taskOwnerInfo() []byte {
 	return []byte("127.0.0.1") // TODO: добавить информацию о подключении
 }
 
-// HashSum возвращает строку контрольной суммы переданной строки
-func HashSum(sd string) string {
+// hashSum возвращает строку контрольной суммы переданной строки
+func hashSum(sd string) string {
 	r := strings.NewReader(sd)
 	h := sha1.New()
 	_, _ = io.Copy(h, r)
 	return fmt.Sprintf("%x", h.Sum(nil))
 }
 
-// HashSumFile вычисляет контрольную сумму файла по алгоритму SHA1
-func HashSumFile(fp string) (string, error) {
+// hashSumFile вычисляет контрольную сумму файла по алгоритму SHA1
+func hashSumFile(fp string) (string, error) {
 	// errMsg := "file hash sum calc error: %v"
 	f, err := os.Open(fp)
 	if err != nil {
@@ -58,8 +56,8 @@ func HashSumFile(fp string) (string, error) {
 	return fmt.Sprintf("%x", h.Sum(nil)), nil
 }
 
-// DirList передает в канал наименования папок в указанной директории
-func DirList(fp string, dirs chan<- string) {
+// dirList передает в канал наименования папок в указанной директории
+func dirList(fp string, dirs chan<- string) {
 	fList, err := filepath.Glob(filepath.Join(fp, "*"))
 	if err != nil {
 		log.Fatal(&InternalError{
@@ -84,8 +82,8 @@ func DirList(fp string, dirs chan<- string) {
 	close(dirs)
 }
 
-// UserAccept проверяет ответ пользователя
-func UserAccept(msg string) bool {
+// userAccept проверяет ответ пользователя
+func userAccept(msg string) bool {
 	scanner := bufio.NewScanner(os.Stdin)
 	for i := 0; i < 3; i++ {
 		fmt.Print(msg + ". Продолжить? (y/N): ")
@@ -105,17 +103,17 @@ func UserAccept(msg string) bool {
 }
 
 // ReadFromJSONFile читает данные из JSON файла
-func ReadFromJSONFile(fp string, v *interface{}) error {
-	buf, err := ioutil.ReadFile(fp)
-	if err != nil {
-		return &InternalError{
-			Text:   "ошибка чтения файла данных",
-			Caller: "ReadFromJSONFile",
-			Err:    err,
-		}
-	}
-	return json.Unmarshal(buf, v)
-}
+// func ReadFromJSONFile(fp string, v *interface{}) error {
+// 	buf, err := ioutil.ReadFile(fp)
+// 	if err != nil {
+// 		return &InternalError{
+// 			Text:   "ошибка чтения файла данных",
+// 			Caller: "ReadFromJSONFile",
+// 			Err:    err,
+// 		}
+// 	}
+// 	return json.Unmarshal(buf, v)
+// }
 
 func searchExecFile(root string, regExp *regexp.Regexp) ([]string, error) {
 	execFilesList := []string{}
@@ -175,9 +173,9 @@ func defineExecFile(r *Repo, pack string) (string, error) {
 	return execFile, nil
 }
 
-// ShowEmptyExecFiles выводит на консоль список пакетов, для которых требуется указать исполняемый файл
-func ShowEmptyExecFiles(r *Repo) {
-	emptyList := r.EmptyExecFilesList()
+// showEmptyExecFiles выводит на консоль список пакетов, для которых требуется указать исполняемый файл
+func showEmptyExecFiles(r *Repo) {
+	emptyList := r.emptyExecFilesList()
 	if len(emptyList) > 0 {
 		fmt.Println("\n\tДля следующих пакетов требуется указать исполняемый файл:")
 		for _, pack := range emptyList {
@@ -222,7 +220,7 @@ func dirWalk(root string) chan FileInfo {
 // InitDB инициализирует файл db
 func InitDB(path string) error {
 	fp := pathDB(path)
-	if FileExists(fp) {
+	if fileExists(fp) {
 		return &InternalError{
 			Text:   "попытка повторной инициализации",
 			Caller: "InitDB",
@@ -254,8 +252,8 @@ func InitDB(path string) error {
 	return nil
 }
 
-// CleanForMigrate удаляет файлы БД, индекса
-func CleanForMigrate(repo *Repo) error {
+// cleanForMigrate удаляет файлы БД, индекса
+func cleanForMigrate(repo *Repo) error {
 	for _, fp := range []string{fileDBName, IndexGZ, IndexGZ + ".sha1"} {
 		fp = filepath.Join(repo.path, fp)
 		if err = os.Remove(fp); err != nil {

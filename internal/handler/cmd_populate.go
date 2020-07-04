@@ -13,10 +13,10 @@ type packages map[string]HashedPackData
 
 // Populate выгружает данные об индексации репозитория в индекс-файл
 func Populate(r *Repo) error {
-	if err = r.CheckDBVersion(); err != nil {
+	if err = r.checkDBVersion(); err != nil {
 		return err
 	}
-	if err = r.CheckEmptyExecFiles(); err != nil {
+	if err = r.checkEmptyExecFiles(); err != nil {
 		return err
 	}
 
@@ -29,7 +29,7 @@ func Populate(r *Repo) error {
 	// список пакетов в из БД
 	packCh := make(chan HashedPackData)
 	go func() {
-		if err = r.HashedPackages(packCh); err != nil {
+		if err = r.hashedPackages(packCh); err != nil {
 			log.Fatal(err)
 		}
 	}()
@@ -57,7 +57,7 @@ func Populate(r *Repo) error {
 	}
 
 	// подсчет hash суммы индекс-файла
-	hash, err := HashSumFile(fpIndex)
+	hash, err := hashSumFile(fpIndex)
 	if err != nil {
 		return err
 	}

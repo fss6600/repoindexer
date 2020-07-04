@@ -34,7 +34,7 @@ func SetReglamentMode(repoPath, mode string) error {
 			fmt.Println(reglOnMessage, string(owner))
 			// активация регламента с записью информации кто активировал
 		} else {
-			err = ioutil.WriteFile(fRegl, TaskOwnerInfo(), 0644)
+			err = ioutil.WriteFile(fRegl, taskOwnerInfo(), 0644)
 			if err != nil {
 				return &InternalError{
 					Text:   "ошибка установки режима регламента",
@@ -68,7 +68,7 @@ func SetReglamentMode(repoPath, mode string) error {
 
 func reglIsSet(repo string) bool {
 	reglf := filepath.Join(repo, fnReglament)
-	return FileExists(reglf)
+	return fileExists(reglf)
 }
 
 func checkRegl(repoPath string) error {

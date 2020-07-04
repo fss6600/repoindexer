@@ -12,12 +12,12 @@ import (
 // Миграция требуется при изменении структуры БД
 func MigrateDB(r *Repo) error {
 	checkRegl(r.path)
-	if !UserAccept("\nДанная операция заменит файлы БД и индекса." +
+	if !userAccept("\nДанная операция заменит файлы БД и индекса." +
 		"\nУбедитесь, что у Вас есть резервная копия") {
 		return nil
 	}
 	fmt.Println()
-	vMaj, vMin, err := r.VersionDB()
+	vMaj, vMin, err := r.versionDB()
 	if err != nil {
 		return err
 	}
@@ -38,9 +38,9 @@ func MigrateDB(r *Repo) error {
 	tmpl := "%-30s: "
 	//подготовка списка заблокированных пакетов
 	fmt.Printf(tmpl, "сохранение alias, blocked")
-	blocked := r.DisabledPacks()
+	blocked := r.disabledPacks()
 	//подготовка списка псевдонимов
-	aliases := r.Aliases()
+	aliases := r.aliases()
 	fmt.Println("OK")
 
 	// close DB
@@ -52,7 +52,7 @@ func MigrateDB(r *Repo) error {
 
 	// очистка старых файлов БД и индекса
 	fmt.Printf(tmpl, "удаление файлов БД и индекса")
-	if err = CleanForMigrate(r); err != nil {
+	if err = cleanForMigrate(r); err != nil {
 		return err
 	}
 	fmt.Println("OK")
@@ -71,14 +71,14 @@ func MigrateDB(r *Repo) error {
 	// ввод псевдонимов в БД
 	fmt.Println("восстановление alias, blocked")
 	for _, alias := range aliases {
-		if err = r.SetAlias(alias); err != nil {
+		if err = r.setAlias(alias); err != nil {
 			return err
 		}
 	}
 
 	// ввод заблокированных в БД
 	for _, pack := range blocked {
-		if err = r.DisablePack(pack); err != nil {
+		if err = r.disablePack(pack); err != nil {
 			return err
 		}
 	}

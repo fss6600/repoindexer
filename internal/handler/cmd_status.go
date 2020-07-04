@@ -8,7 +8,7 @@ import (
 // выводит актуальную информацию о репозитории
 func RepoStatus(r *Repo) error {
 	const timeLayout = "2006-01-02 15:04:05"
-	rData, err := r.Status()
+	rData, err := r.repoStatus()
 	if err != nil {
 		return err
 	}
@@ -52,7 +52,7 @@ func RepoStatus(r *Repo) error {
 	}
 	fmt.Println()
 
-	vMaj, vMin, err := r.VersionDB()
+	vMaj, vMin, err := r.versionDB()
 	if err != nil {
 		return err
 	}
@@ -61,11 +61,11 @@ func RepoStatus(r *Repo) error {
 	fmt.Printf(template, "программы: ", DBVersionMajor, DBVersionMinor)
 	fmt.Printf(template, "репозитория: ", vMaj, vMin)
 
-	if err = r.CheckDBVersion(); err != nil {
+	if err = r.checkDBVersion(); err != nil {
 		return err
 	}
 
-	ShowEmptyExecFiles(r) // проверка на пустые исполняемый файлы
+	showEmptyExecFiles(r) // проверка на пустые исполняемый файлы
 
 	if unIndexed > 0 || unIndexed < 0 {
 		fmt.Println(doIndexMsg)
