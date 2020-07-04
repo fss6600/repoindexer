@@ -2,8 +2,8 @@ package handler
 
 import (
 	"database/sql"
-	"errors"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"sort"
@@ -13,10 +13,13 @@ import (
 	"github.com/mattn/go-sqlite3"
 )
 
-// NewRepoObj возвращает объект Repo
-func NewRepoObj(path string) (*Repo, error) {
+// NewRepo возвращает объект Repo
+func NewRepo(path string) (*Repo, error) {
 	if path == "" {
-		return nil, errors.New("не указан путь к репозиторию")
+		return nil, &InternalError{
+			Text:   "не указан путь к репозиторию",
+			Caller: "Manager::NewRepoObj",
+		}
 	}
 	repo := new(Repo)
 	repo.path = path
@@ -32,7 +35,10 @@ func (r *Repo) Path() string {
 func (r *Repo) OpenDB() error {
 	fp := pathDB(r.path)
 	if !FileExists(fp) {
-		return errors.New("Репозиторий не инициализирован")
+		return &InternalError{
+			Text:   "Репозиторий не инициализирован",
+			Caller: "Manager::OpenDB",
+		}
 	}
 	db, err := newConnection(fp)
 	if err != nil {
@@ -44,7 +50,11 @@ func (r *Repo) OpenDB() error {
 	}
 	// инициализация поддержки первичных ключей в БД
 	if _, err := r.db.Exec("PRAGMA foreign_keys = ON;"); err != nil {
-		return fmt.Errorf("init PRAGMA failed: %v", err)
+		return &InternalError{
+			Text:   "Ошибка создания соединения с БД",
+			Caller: "Manager::OpenDB",
+			Err:    err,
+		}
 	}
 	return nil
 }
@@ -66,7 +76,11 @@ func (r *Repo) Close() error {
 			fmt.Printf("ошибка оптимизации БД: %v\n", err)
 		}
 		if err = r.db.Close(); err != nil {
-			return fmt.Errorf("ошибка закрытия БД: %v", err)
+			return &InternalError{
+				Text:   "ошибка закрытия БД",
+				Caller: "Manager::Close",
+				Err:    err,
+			}
 		}
 		r.db = nil
 	}
@@ -77,10 +91,18 @@ func (r *Repo) Close() error {
 func (r *Repo) Clean() error {
 	if r.db != nil {
 		if _, err = r.db.Exec("VACUUM"); err != nil {
-			return fmt.Errorf("ошибка очистки БД: %v", err)
+			return &InternalError{
+				Text:   "ошибка очистки БД",
+				Caller: "Manager::Clean::vacuum",
+				Err:    err,
+			}
 		}
 		if _, err = r.db.Exec("REINDEX"); err != nil {
-			return fmt.Errorf("ошибка перестройки идекса таблиц БД: %v", err)
+			return &InternalError{
+				Text:   "ошибка перестройки идекса таблиц БД",
+				Caller: "Manager::Clean::reindex",
+				Err:    err,
+			}
 		}
 	}
 	return nil
@@ -89,10 +111,13 @@ func (r *Repo) Clean() error {
 // PackageID возвращает ID пакета
 func (r *Repo) PackageID(pack string) (int64, error) {
 	var id int64
-	if err = r.db.QueryRow("SELECT id FROM packages WHERE name=?;", pack).Scan(&id); err == sql.ErrNoRows {
-		return 0, err
-	} else if err != nil {
-		panic(fmt.Errorf("ошибка получения ID пакета [ %v ]: %v", pack, err))
+	// if err = r.db.QueryRow("SELECT id FROM packages WHERE name=?;", pack).Scan(&id); err == sql.ErrNoRows {
+	if err = r.db.QueryRow("SELECT id FROM packages WHERE name=?;", pack).Scan(&id); err != nil {
+		return 0, &InternalError{
+			Text:   fmt.Sprintf("ошибка получения ID пакета %q", pack),
+			Caller: "Manager::PackageID",
+			Err:    err,
+		}
 	}
 	return id, nil
 }
@@ -101,7 +126,11 @@ func (r *Repo) PackageID(pack string) (int64, error) {
 func (r *Repo) NewPackage(name string) (id int64, err error) {
 	res, err := r.db.Exec("INSERT INTO packages ('name', 'hash') VALUES (?, 0);", name)
 	if err != nil {
-		return 0, fmt.Errorf("ошибка создания записи о пакете [ %v ]в БД: %v", name, err)
+		return 0, &InternalError{
+			Text:   fmt.Sprintf("ошибка создания записи о пакете %q в БД", name),
+			Caller: "Manager::NewPackageID",
+			Err:    err,
+		}
 	}
 	id, _ = res.LastInsertId()
 	return id, nil
@@ -131,31 +160,60 @@ func (r *Repo) Aliases() [][]string {
 // SetAlias устанавливает псевдоним для пакета при отсутствии уже установленного псевдонима
 // и при наличии актуального пакета
 func (r *Repo) SetAlias(alias []string) error {
-	if !r.PackIsActive(alias[0]) {
-		return ErrAlias(fmt.Errorf("пакет [ %v ] не найден или заблокирован", alias[0]))
+	pck := alias[0]
+	als := alias[1]
+	if !r.PackIsActive(pck) {
+		return &InternalError{
+			Text:   fmt.Sprintf("пакет %q не найден или заблокирован", pck),
+			Caller: "Manager::SetAlias",
+		}
 	}
-	if res, err := r.db.Exec("INSERT INTO aliases (name, alias) VALUES (?, ?);", alias[0], alias[1]); err != nil {
+	if res, err := r.db.Exec("INSERT INTO aliases (name, alias) VALUES (?, ?);", pck, als); err != nil {
 		switch err.(type) {
-		case *sqlite3.Error:
+		case sqlite3.Error:
 			if err.(sqlite3.Error).Code == sqlite3.ErrConstraint {
-				return ErrAlias(fmt.Errorf("Псевдоним [ %v ] или псевдоним для пакета [ %v ] уже заданы", alias[1], alias[0]))
+				return &InternalError{
+					Text: fmt.Sprintf("Псевдоним для пакета %q уже задан", pck),
+					Err:  err,
+				}
+			}
+			return &InternalError{
+				Text:   fmt.Sprintf("ошибка создания псевдонима %q для пакета %q", als, pck),
+				Caller: "Manager::SetAlias::SQL",
+				Err:    err,
 			}
 		default:
-			return fmt.Errorf(":manager: %v", err)
+			return &InternalError{
+				Text:   fmt.Sprintf("ошибка создания псевдонима %q для пакета %q", als, pck),
+				Caller: "Manager::SetAlias" + fmt.Sprintf("[%v]", err.(sqlite3.Error).Code),
+				Err:    err,
+			}
 		}
 	} else if c, err := res.RowsAffected(); err != nil || c != 1 {
-		return fmt.Errorf(":manager: псевдоним не добавлен: err=%v;count=%d", err, c)
+		return &InternalError{
+			Text:   fmt.Sprintf("псевдоним не добавлен: count=%d;excpect: 1", c),
+			Caller: "Manager::SetAlias",
+			Err:    err,
+		}
 	}
-	fmt.Printf("Установлен псевдоним: [ %v ]=( %v )\n", alias[0], alias[1])
+	fmt.Printf("Установлен псевдоним: [ %v ]=( %v )\n", pck, als)
 	return nil
 }
 
 // DelAlias удалает псевдоним
 func (r *Repo) DelAlias(alias string) error {
 	if res, err := r.db.Exec("DELETE FROM aliases WHERE alias=?;", alias); err != nil {
-		return fmt.Errorf(":manager: %v", err)
+		return &InternalError{
+			Text:   "ошибка удаления псевдонима",
+			Caller: "Manager::DelAlias",
+			Err:    err,
+		}
 	} else if c, _ := res.RowsAffected(); c != 1 {
-		return ErrAlias(fmt.Errorf("не найден псевдоним [ %v ]", alias))
+		return &InternalError{
+			Text:   fmt.Sprintf("не найден псевдоним %q", alias),
+			Caller: "Manager::DelAlias",
+			Err:    err,
+		}
 	}
 	fmt.Printf("Удален псевдоним: [ %v ]\n", alias)
 	return nil
@@ -177,7 +235,7 @@ func (r *Repo) NoIndexedPacks() []string {
 func (r *Repo) ActivePacks() []string {
 	if len(r.actPacks) == 0 {
 		ch := make(chan string, 3)
-		go DirList(r.Path(), ch)
+		go DirList(r.path, ch)
 		for name := range ch {
 			if r.PackIsBlocked(name) {
 				continue
@@ -194,7 +252,7 @@ func (r *Repo) DisabledPacks() []string {
 	if len(r.disPacks) == 0 {
 		rows, err := r.db.Query("SELECT name FROM excludes;")
 		if err != nil {
-			panic(fmt.Errorf("error select disabled packs: %v", err))
+			log.Fatalf("Manager::DisabledPacks: error select packs: %v", err)
 		}
 		defer rows.Close()
 		var name string
@@ -214,7 +272,11 @@ func (r *Repo) HashedPackages(packs chan HashedPackData) error {
 	if err == sql.ErrNoRows {
 		return nil
 	} else if err != nil {
-		return fmt.Errorf("HashedPackages: %v", err)
+		return &InternalError{
+			Text:   "ошибка выборки пакетов",
+			Caller: "Manager::HashedPackages",
+			Err:    err,
+		}
 	}
 	defer rows.Close()
 
@@ -223,7 +285,11 @@ func (r *Repo) HashedPackages(packs chan HashedPackData) error {
 
 	for rows.Next() {
 		if err = rows.Scan(&pData.ID, &pData.Name, &pData.Hash, &pData.Exec); err != nil {
-			return fmt.Errorf("HashedPackages: %v", err)
+			return &InternalError{
+				Text:   "ошибка выборки пакетов",
+				Caller: "Manager::HashedPackages",
+				Err:    err,
+			}
 		}
 		pData.Alias = r.Alias(pData.Name)
 
@@ -265,7 +331,11 @@ func (r *Repo) FilesPackRepo(pack string) []*FileInfo {
 func (r *Repo) FilesPackDB(id int64) ([]*FileInfo, error) {
 	rows, err := r.db.Query("SELECT id, path, size, mdate, hash FROM files WHERE package_id=? ORDER BY path;", id)
 	if err != nil {
-		return nil, err
+		return nil, &InternalError{
+			Text:   "ошибка выборки файлов",
+			Caller: "Manager::FilesPackDB",
+			Err:    err,
+		}
 	}
 	defer rows.Close()
 	var pFileInfoList []*FileInfo
@@ -273,7 +343,11 @@ func (r *Repo) FilesPackDB(id int64) ([]*FileInfo, error) {
 	for rows.Next() {
 		fd := new(FileInfo)
 		if err := rows.Scan(&fd.ID, &fd.Path, &fd.Size, &fd.MDate, &fd.Hash); err != nil {
-			return nil, err
+			return nil, &InternalError{
+				Text:   "ошибка выборки файлов",
+				Caller: "Manager::FilesPackDB::Scan",
+				Err:    err,
+			}
 		}
 		pFileInfoList = append(pFileInfoList, fd)
 	}
@@ -310,12 +384,20 @@ func (r *Repo) PackIsActive(pack string) bool {
 	return false
 }
 
-// AddFile добавляет данные файла пакета в БД при обнаружении в репозитории
-func (r *Repo) AddFile(fInfo *FileInfo) error {
+// AddFileData добавляет данные файла пакета в БД при обнаружении в репозитории
+func (r *Repo) AddFileData(fInfo *FileInfo) error {
 	if res, err := r.stmtAddFile.Exec(fInfo.ID, fInfo.Path, fInfo.Size, fInfo.MDate, fInfo.Hash); err != nil {
-		return fmt.Errorf(":stmtAddFile: %v", err)
+		return &InternalError{
+			Text:   "ошибка добавления файла",
+			Caller: "Manager::AddFile::stmtAddFile",
+			Err:    err,
+		}
 	} else if ret, _ := res.RowsAffected(); ret == 0 {
-		return fmt.Errorf(":stmtAddFile: 0 rows added")
+		return &InternalError{
+			Text:   "ошибка добавления файла",
+			Caller: "Manager::AddFile::stmtAddFile",
+			Err:    err,
+		}
 	}
 	return nil
 }
@@ -323,19 +405,35 @@ func (r *Repo) AddFile(fInfo *FileInfo) error {
 // UpdateFileData обновляет данные о файде в пакете при изменении в репозитории
 func (r *Repo) UpdateFileData(fd *FileInfo) error {
 	if res, err := r.stmtUpdFile.Exec(fd.Size, fd.MDate, fd.Hash, fd.ID); err != nil {
-		return fmt.Errorf("stmtUpdFile error: %v", err)
+		return &InternalError{
+			Text:   "ошибка обновления файла",
+			Caller: "Manager::UpdateFileData::stmtUpdFile",
+			Err:    err,
+		}
 	} else if ret, _ := res.RowsAffected(); ret == 0 {
-		return fmt.Errorf("stmtUpdFile error: 0 rows affected")
+		return &InternalError{
+			Text:   "ошибка обновления файла",
+			Caller: "Manager::UpdateFileData::stmtUpdFile",
+			Err:    err,
+		}
 	}
 	return nil
 }
 
-// RemoveFile удаляет данные о файле из БД при отсутствии в репозитории
-func (r *Repo) RemoveFile(fInfo *FileInfo) error {
+// RemoveFileData удаляет данные о файле из БД при отсутствии в репозитории
+func (r *Repo) RemoveFileData(fInfo *FileInfo) error {
 	if res, err := r.stmtDelFile.Exec(fInfo.ID); err != nil {
-		return fmt.Errorf(":stmtDelFile: %v", err)
+		return &InternalError{
+			Text:   "ошибка обновления файла",
+			Caller: "Manager::RemoveFile::stmtDelFile",
+			Err:    err,
+		}
 	} else if ret, _ := res.RowsAffected(); ret == 0 {
-		return fmt.Errorf(":stmtDelFile: no rows added in fact")
+		return &InternalError{
+			Text:   "ошибка обновления файла",
+			Caller: "Manager::RemoveFile::stmtDelFile",
+			Err:    err,
+		}
 	}
 	return nil
 }
@@ -372,12 +470,21 @@ func (r *Repo) Packages() []string {
 
 // DisablePack блокирует пакет
 func (r *Repo) DisablePack(pack string) error {
+
 	res, err := r.db.Exec("INSERT INTO excludes VALUES (?);", pack)
 	if err != nil {
-		return fmt.Errorf(":DisablePack: %v", pack)
+		return &InternalError{
+			Text:   fmt.Sprintf("ошибка деактивации пакета %q", pack),
+			Caller: "Manager::DisablePack",
+			Err:    err,
+		}
 	}
 	if c, _ := res.RowsAffected(); c != 1 {
-		return fmt.Errorf(":DisablePack:[ %v ]:добавлено %d, должно 1", pack, c)
+		return &InternalError{
+			Text:   fmt.Sprintf("ошибка деактивации пакета %q", pack),
+			Caller: "Manager::DisablePack::Count0",
+			Err:    err,
+		}
 	}
 	fmt.Printf("заблокирован: [ %s ]\n", pack)
 	return nil
@@ -387,10 +494,18 @@ func (r *Repo) DisablePack(pack string) error {
 func (r *Repo) EnablePack(pack string) error {
 	res, err := r.db.Exec("DELETE FROM excludes WHERE Name=?;", pack)
 	if err != nil {
-		return fmt.Errorf(":EnablePack: %v", pack)
+		return &InternalError{
+			Text:   fmt.Sprintf("ошибка активации пакета %q", pack),
+			Caller: "Manager::EnablePack",
+			Err:    err,
+		}
 	}
 	if c, _ := res.RowsAffected(); c != 1 {
-		return fmt.Errorf(":EnablePack:[ %v ]:удалено %d, должно 1", pack, c)
+		return &InternalError{
+			Text:   fmt.Sprintf("ошибка активации пакета %q", pack),
+			Caller: "Manager::EnablePack::Count0",
+			Err:    err,
+		}
 	}
 	fmt.Printf("активирован: [ %s ]\n", pack)
 	return nil
@@ -400,10 +515,18 @@ func (r *Repo) EnablePack(pack string) error {
 func (r *Repo) RemovePack(pack string) error {
 	res, err := r.db.Exec("DELETE FROM packages WHERE Name=?;", pack)
 	if err != nil {
-		return fmt.Errorf("error remove pack: %v", pack)
+		return &InternalError{
+			Text:   fmt.Sprintf("ошибка удаления пакета %q", pack),
+			Caller: "Manager::RemovePack",
+			Err:    err,
+		}
 	}
 	if c, _ := res.RowsAffected(); c == 0 {
-		return fmt.Errorf("должна быть удалена 1 запись: 0")
+		return &InternalError{
+			Text:   fmt.Sprintf("ошибка удаления пакета %q", pack),
+			Caller: "Manager::RemovePack::Count0",
+			Err:    err,
+		}
 	}
 	fmt.Printf("  - [ %s ]\n", pack)
 	return nil
@@ -413,7 +536,11 @@ func (r *Repo) RemovePack(pack string) error {
 func (r *Repo) DBCleanPackages() error {
 	_, err := r.db.Exec("DELETE FROM packages;")
 	if err != nil {
-		return fmt.Errorf(":DBCleanPackages:%v", err)
+		return &InternalError{
+			Text:   "ошибка очистки данных пакетов",
+			Caller: "Manager::DBCleanPackages",
+			Err:    err,
+		}
 	}
 	return nil
 }
@@ -422,7 +549,11 @@ func (r *Repo) DBCleanPackages() error {
 func (r *Repo) DBCleanAliases() error {
 	_, err := r.db.Exec("DELETE FROM aliases;")
 	if err != nil {
-		return fmt.Errorf(":DBCleanAliases:%v", err)
+		return &InternalError{
+			Text:   "ошибка очистки данных псевдонимов",
+			Caller: "Manager::DBCleanAliases",
+			Err:    err,
+		}
 	}
 	return nil
 }
@@ -431,12 +562,14 @@ func (r *Repo) DBCleanAliases() error {
 func (r *Repo) DBCleanStatus() error {
 	_, err := r.db.Exec("DELETE FROM excludes;")
 	if err != nil {
-		return fmt.Errorf(":DBCleanStatus:%v", err)
+		return &InternalError{
+			Text:   "ошибка очистки данных блокировок",
+			Caller: "Manager::DBCleanStatus",
+			Err:    err,
+		}
 	}
 	return nil
 }
-
-// todo: пересмотреть на расчет суммы частями
 
 // HashSumPack подсчет контрольной суммы пакета по основанию сумм файлов
 func (r *Repo) HashSumPack(id int64) error {
@@ -450,10 +583,18 @@ func (r *Repo) HashSumPack(id int64) error {
 	hash = HashSum(hTotal)
 	res, err := r.db.Exec("UPDATE packages SET hash=? WHERE id=?;", hash, id)
 	if err != nil {
-		return fmt.Errorf("HashSumPack: %v", err)
+		return &InternalError{
+			Text:   "ошибка подсчета контрольной суммы",
+			Caller: "Manager::HashSumPack",
+			Err:    err,
+		}
 	}
 	if c, _ := res.RowsAffected(); c == 0 {
-		return fmt.Errorf("HashSumPack: должна быть обновлена 1 запись: 0")
+		return &InternalError{
+			Text:   "ошибка подсчета контрольной суммы",
+			Caller: "Manager::HashSumPack::Count0",
+			Err:    err,
+		}
 	}
 	return nil
 }
@@ -464,17 +605,29 @@ func (r *Repo) SetPrepare() error {
 	sqlExpr := "INSERT INTO files ('package_id', 'path', 'size', 'mdate', 'hash') VALUES (?, ?, ?, ?, ?);"
 	r.stmtAddFile, err = r.db.Prepare(sqlExpr)
 	if err != nil {
-		return err
+		return &InternalError{
+			Text:   "ошибка подготовки данных запроса",
+			Caller: "Manager::SetPrepare::insert",
+			Err:    err,
+		}
 	}
 	//
 	r.stmtDelFile, err = r.db.Prepare("DELETE FROM files WHERE id=?;")
 	if err != nil {
-		return err
+		return &InternalError{
+			Text:   "ошибка подготовки данных запроса",
+			Caller: "Manager::SetPrepare::delete",
+			Err:    err,
+		}
 	}
 	//
 	r.stmtUpdFile, err = r.db.Prepare("UPDATE files SET size=?, mdate=?, hash=? WHERE id=?;")
 	if err != nil {
-		return err
+		return &InternalError{
+			Text:   "ошибка подготовки данных запроса",
+			Caller: "Manager::SetPrepare::update",
+			Err:    err,
+		}
 	}
 	return nil
 }
@@ -484,12 +637,20 @@ func (r *Repo) Status() (*RepoStData, error) {
 	data := new(RepoStData)
 	// количество активных пакетов
 	if err = r.db.QueryRow("SELECT COUNT() FROM packages;").Scan(&data.IndexedCnt); err != nil {
-		return nil, fmt.Errorf("manager::Status::Active: %v", err)
+		return nil, &InternalError{
+			Text:   "ошибка запроса данных в БД",
+			Caller: "Manager::Status::active",
+			Err:    err,
+		}
 	}
 
 	// количество заблокированных
 	if err = r.db.QueryRow("SELECT COUNT() FROM excludes;").Scan(&data.BlockedCnt); err != nil {
-		return nil, fmt.Errorf("manager::Status::Blocked: %v", err)
+		return nil, &InternalError{
+			Text:   "ошибка запроса данных в БД",
+			Caller: "Manager::Status::disabled",
+			Err:    err,
+		}
 	}
 
 	// количество пакетов в репозитории
@@ -562,13 +723,21 @@ func (r *Repo) List(ch chan<- *ListData) {
 func (r *Repo) checkDB() error {
 	rows, err := r.db.Query("PRAGMA integrity_check;")
 	if err != nil {
-		return err
+		return &InternalError{
+			Text:   "ошибка проверки целостности БД",
+			Caller: "Manager::checkDB",
+			Err:    err,
+		}
 	}
 	var res interface{}
 	for rows.Next() {
 		err = rows.Scan(&res)
 		if res != "ok" || err != nil {
-			return fmt.Errorf("ошибка целостности БД; требуется повторная инициализация %v", err)
+			return &InternalError{
+				Text:   "ошибка целостности БД. Tребуется повторная инициализация",
+				Caller: "Manager::checkDB",
+				Err:    err,
+			}
 		}
 	}
 	return nil
@@ -581,12 +750,21 @@ func (r *Repo) CheckDBVersion() error {
 		return err
 	} // todo - миграцию при поднятии версии программы
 	if DBVersionMajor > vmaj {
-		return fmt.Errorf("\n\tУстаревшая версия репозитория. Требуется переиндексация")
+		return &InternalError{
+			Text:   "\n\tУстаревшая версия репозитория. Требуется переиндексация",
+			Caller: "Manager::CheckDBVersion",
+		}
 	} else if DBVersionMinor > vmin {
-		return fmt.Errorf("\n\tТребуется миграция БД репозитория")
+		return &InternalError{
+			Text:   "\n\tТребуется миграция БД репозитория",
+			Caller: "Manager::CheckDBVersion",
+		}
 	} else if vmaj > DBVersionMajor || vmin > DBVersionMinor {
-		return fmt.Errorf("\n\tверсия БД [%d.%d] старше требуемой[%d.%d]; возможно вы используете старую версию программы",
-			vmaj, vmin, DBVersionMajor, DBVersionMinor)
+		msg := "\n\tверсия БД [%d.%d] старше требуемой[%d.%d]; возможно вы используете старую версию программы"
+		return &InternalError{
+			Text:   fmt.Sprintf(msg, vmaj, vmin, DBVersionMajor, DBVersionMinor),
+			Caller: "Manager::CheckDBVersion",
+		}
 	}
 	return nil
 }
@@ -610,7 +788,10 @@ func (r *Repo) VersionDB() (int64, int64, error) {
 	var vmaj, vmin int64
 	err := r.db.QueryRow("SELECT vers_major, vers_minor FROM info WHERE id=1;").Scan(&vmaj, &vmin)
 	if err != nil {
-		return 0, 0, fmt.Errorf("нет данных о версии БД; произведите инициализацию")
+		return 0, 0, &InternalError{
+			Text:   "нет данных о версии БД. Требуется инициализация",
+			Caller: "Manager::VersionDB",
+		}
 	}
 	return vmaj, vmin, nil
 }
@@ -629,7 +810,11 @@ func (r *Repo) ExecFileSet(pack string, force bool) error {
 			"SELECT CASE WHEN exec IS null THEN '' ELSE exec END exec FROM packages WHERE id=?;", id).Scan(
 			&execInDB); err != nil {
 			//if err := r.db.QueryRow("SELECT exec FROM packages WHERE id=?;", id).Scan(&exec_db); err != nil {
-			return err
+			return &InternalError{
+				Text:   "ошибка запроса данных в БД",
+				Caller: "Manager::ExecFileSet",
+				Err:    err,
+			}
 		}
 		if execInDB != "" {
 			fmt.Printf("\t%v: уже установлен, пропуск\n", pack)
@@ -643,10 +828,18 @@ func (r *Repo) ExecFileSet(pack string, force bool) error {
 		}
 		res, err := r.db.Exec("UPDATE packages SET exec=? WHERE id=?;", execFile, id)
 		if err != nil {
-			return fmt.Errorf("ExecFileSet: %v", err)
+			return &InternalError{
+				Text:   "ошибка обновления данных в БД",
+				Caller: "Manager::ExecFileSet",
+				Err:    err,
+			}
 		}
 		if c, _ := res.RowsAffected(); c == 0 {
-			return fmt.Errorf("ExecFileSet: должна быть обновлена 1 запись: 0")
+			return &InternalError{
+				Text:   "ошибка обновления данных в БД",
+				Caller: "Manager::ExecFileSet::Count0",
+				Err:    err,
+			}
 		}
 		fmt.Printf("\t%v: установлен в [ %v ]\n", pack, execFile)
 	}
@@ -662,10 +855,18 @@ func (r *Repo) ExecFileDel(pack string) error {
 	// CheckError(fmt.Sprintf("не найден пакет в БД: %v", pack), &err)
 	res, err := r.db.Exec("UPDATE packages SET exec='noexec' WHERE id=?;", id)
 	if err != nil {
-		return fmt.Errorf("ExecFileDel: %v", err)
+		return &InternalError{
+			Text:   "ошибка удаления данных в БД",
+			Caller: "Manager::ExecFileDel",
+			Err:    err,
+		}
 	}
 	if c, _ := res.RowsAffected(); c == 0 {
-		return fmt.Errorf("ExecFileDel: должна быть обновлена 1 запись: 0")
+		return &InternalError{
+			Text:   "ошибка удаления данных в БД",
+			Caller: "Manager::ExecFileDel::Count0",
+			Err:    err,
+		}
 	}
 	fmt.Printf("Исполняемый файл пакета '%v' установлен в 'noexec' \n", pack)
 	return nil
@@ -684,7 +885,11 @@ func (r *Repo) ExecFileInfo(pack string) (string, error) {
 		"SELECT CASE WHEN exec IS null THEN '' ELSE exec END exec FROM packages WHERE id=?;", id).Scan(
 		&execInDB); err != nil {
 		//if err := r.db.QueryRow("SELECT exec FROM packages WHERE id=?;", id).Scan(&exec_db); err != nil {
-		return "", err
+		return "", &InternalError{
+			Text:   "ошибка запроса данных в БД",
+			Caller: "Manager::ExecFileInfo",
+			Err:    err,
+		}
 	}
 	return execInDB, nil
 }
@@ -692,8 +897,11 @@ func (r *Repo) ExecFileInfo(pack string) (string, error) {
 // CheckEmptyExecFiles проверяет на наличие не установленных исполняемых файлах пакетов в репозитории
 func (r *Repo) CheckEmptyExecFiles() error {
 	if len(r.EmptyExecFilesList()) > 0 {
-		return fmt.Errorf("\n\tТребуется определить исполняемые файлы\n\t" +
-			"Запустите программу с командой 'exec check'\n")
+		return &InternalError{
+			Text: "\n\tТребуется определить исполняемые файлы\n\t" +
+				"Запустите программу с командой 'exec check'\n",
+			Caller: "Manager::CheckEmptyExecFiles",
+		}
 	}
 	return nil
 }

@@ -40,7 +40,7 @@ func HashSumFile(fp string) (string, error) {
 	// errMsg := "file hash sum calc error: %v"
 	f, err := os.Open(fp)
 	if err != nil {
-		return "", &internalError{
+		return "", &InternalError{
 			Text:   fmt.Sprintf("ошибка подсчета контрольной суммы файла %s", fp),
 			Caller: "HashSumFile",
 			Err:    err,
@@ -49,7 +49,7 @@ func HashSumFile(fp string) (string, error) {
 	defer f.Close()
 	h := sha1.New()
 	if _, err := io.Copy(h, f); err != nil {
-		return "", &internalError{
+		return "", &InternalError{
 			Text:   fmt.Sprintf("ошибка подсчета контрольной суммы файла %s", fp),
 			Caller: "HashSumFile",
 			Err:    err,
@@ -62,7 +62,7 @@ func HashSumFile(fp string) (string, error) {
 func DirList(fp string, dirs chan<- string) {
 	fList, err := filepath.Glob(filepath.Join(fp, "*"))
 	if err != nil {
-		log.Fatal(&internalError{
+		log.Fatal(&InternalError{
 			Text:   "ошибка получения списка пакетов",
 			Caller: "DirList::Glob",
 			Err:    err,
@@ -71,7 +71,7 @@ func DirList(fp string, dirs chan<- string) {
 	for _, d := range fList {
 		res, err := os.Stat(d)
 		if err != nil {
-			log.Fatal(&internalError{
+			log.Fatal(&InternalError{
 				Text:   "ошибка получения данных пакета",
 				Caller: "DirList::Stat",
 				Err:    err,
@@ -83,16 +83,6 @@ func DirList(fp string, dirs chan<- string) {
 	}
 	close(dirs)
 }
-
-// CheckPanic обработка вызова panic в любой части программы
-// func CheckPanic(debug bool) {
-// 	if !debug {
-// 		if r := recover(); r != nil {
-// 			fmt.Println(r)
-// 		}
-// 	}
-
-// }
 
 // UserAccept проверяет ответ пользователя
 func UserAccept(msg string) bool {
@@ -118,7 +108,7 @@ func UserAccept(msg string) bool {
 func ReadFromJSONFile(fp string, v *interface{}) error {
 	buf, err := ioutil.ReadFile(fp)
 	if err != nil {
-		return &internalError{
+		return &InternalError{
 			Text:   "ошибка чтения файла данных",
 			Caller: "ReadFromJSONFile",
 			Err:    err,
@@ -133,7 +123,7 @@ func searchExecFile(root string, regExp *regexp.Regexp) ([]string, error) {
 		if regExp.MatchString(fInfo.Path) {
 			fp, err := filepath.Rel(root, fInfo.Path)
 			if err != nil {
-				return nil, &internalError{
+				return nil, &InternalError{
 					Text:   "ошибка приведения относительного пути",
 					Caller: "searchExecFile::Rel",
 					Err:    err,
@@ -218,7 +208,7 @@ func dirWalk(root string) chan FileInfo {
 			return nil
 		})
 		if err != nil {
-			log.Fatal(&internalError{
+			log.Fatal(&InternalError{
 				Text:   "ошибка обхода директории",
 				Caller: "dirWalk::goroutine",
 				Err:    err,
@@ -233,7 +223,7 @@ func dirWalk(root string) chan FileInfo {
 func InitDB(path string) error {
 	fp := pathDB(path)
 	if FileExists(fp) {
-		return &internalError{
+		return &InternalError{
 			Text:   "попытка повторной инициализации",
 			Caller: "InitDB",
 		}
@@ -246,17 +236,17 @@ func InitDB(path string) error {
 		_ = db.Close()
 	}()
 	if _, err := db.Exec(initSQL); err != nil {
-		return &internalError{
-			Text:   "ошибка выполнения SQL",
+		return &InternalError{
+			Text:   "ошибка инициализации репозитория",
 			Caller: "InitDB::db.Exec::init",
 			Err:    err,
 		}
 	}
 	if _, err := db.Exec("INSERT INTO info (id, vers_major, vers_minor) VALUES (?, ?, ?);",
 		1, DBVersionMajor, DBVersionMinor); err != nil {
-		return &internalError{
-			Text:   "ошибка выполнения SQL",
-			Caller: "InitDB::db.Exec::insert",
+		return &InternalError{
+			Text:   "ошибка инициализации репозитория",
+			Caller: "InitDB::db.Exec::SQL::insert",
 			Err:    err,
 		}
 	}
@@ -269,7 +259,7 @@ func CleanForMigrate(repo *Repo) error {
 	for _, fp := range []string{fileDBName, IndexGZ, IndexGZ + ".sha1"} {
 		fp = filepath.Join(repo.path, fp)
 		if err = os.Remove(fp); err != nil {
-			return &internalError{
+			return &InternalError{
 				Text:   "ошибка удаления файла",
 				Caller: "CleanForMigrate",
 				Err:    err,
@@ -279,13 +269,15 @@ func CleanForMigrate(repo *Repo) error {
 	return nil
 }
 
-func newConnection(fp string) (*sql.DB, error) {
-	sql, err := sql.Open("sqlite3", fp)
-	return sql, &internalError{
-		Text:   "ошибка открытия файла БД",
-		Caller: "newConnection",
-		Err:    err,
+func newConnection(fp string) (conn *sql.DB, err error) {
+	if conn, err = sql.Open("sqlite3", fp); err != nil {
+		return conn, &InternalError{
+			Text:   "ошибка открытия файла БД",
+			Caller: "newConnection",
+			Err:    err,
+		}
 	}
+	return
 }
 
 func pathDB(repoPath string) string {

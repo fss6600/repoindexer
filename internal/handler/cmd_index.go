@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"database/sql"
 	"fmt"
 	"path/filepath"
 )
@@ -22,7 +23,7 @@ func Index(r *Repo, fullmode bool, packs []string) error {
 	// проверка пакета на блокировку
 	for _, pack := range packs {
 		if r.PackIsBlocked(pack) {
-			return &internalError{
+			return &InternalError{
 				Text:   fmt.Sprintf("пакет %q заблокирован", pack),
 				Caller: "Index",
 			}
@@ -35,7 +36,7 @@ func Index(r *Repo, fullmode bool, packs []string) error {
 
 	for _, pack := range packs {
 		if pack == "" {
-			return &internalError{
+			return &InternalError{
 				Text:   "задано пустое имя пакета",
 				Caller: "Index",
 			}
@@ -73,15 +74,16 @@ func processPackIndex(r *Repo, fullmode bool, pack string) (bool, error) {
 		fsList, dbList           []*FileInfo // список файлов пакета в БД
 		fsInd, dbInd             int         // counters
 		packChanged, fileChanged bool        // package has changes
-		err                      error       // error
 		fpRel                    string      // путь к файлу относительно пакета
 	)
 
 	packID, err = r.PackageID(pack)
-	if err != nil { // нет такого пакета
+	if err != nil && err.(*InternalError).Err == sql.ErrNoRows { // нет такого пакета
 		if packID, err = r.NewPackage(pack); err != nil {
 			return false, err
 		}
+	} else if err != nil {
+		return false, err
 	}
 
 	fsList = r.FilesPackRepo(pack)
@@ -103,15 +105,14 @@ func processPackIndex(r *Repo, fullmode bool, pack string) (bool, error) {
 		if dbInd > dbMaxInd {
 			// добавляем запись о файле в БД
 			fInfo = fsList[fsInd]
-			fpRel, _ = filepath.Rel(filepath.Join(r.Path(), pack), fInfo.Path)
-
 			fInfo.ID = packID
 			if fInfo.Hash, err = getFileHash(fInfo.Path); err != nil {
 				return false, err
 			}
+			fpRel, _ = filepath.Rel(filepath.Join(r.path, pack), fInfo.Path)
 			fInfo.Path = fpRel
 
-			if err = r.AddFile(fInfo); err != nil {
+			if err = r.AddFileData(fInfo); err != nil {
 				return false, err
 			}
 
@@ -127,7 +128,7 @@ func processPackIndex(r *Repo, fullmode bool, pack string) (bool, error) {
 		// пакета нет в репозитории - удаляем запись о файле из БД
 		if fsInd > fsMaxInd { // not in FS
 			dbData = dbList[dbInd]
-			if err = r.RemoveFile(dbData); err != nil {
+			if err = r.RemoveFileData(dbData); err != nil {
 				return false, err
 			}
 			fmt.Println("  -", dbData.Path)
@@ -179,7 +180,7 @@ func processPackIndex(r *Repo, fullmode bool, pack string) (bool, error) {
 			}
 			fInfo.Path = fpRel
 
-			if err = r.AddFile(fInfo); err != nil {
+			if err = r.AddFileData(fInfo); err != nil {
 				return false, err
 			}
 
@@ -193,7 +194,7 @@ func processPackIndex(r *Repo, fullmode bool, pack string) (bool, error) {
 			// удаляем запись о файле из БД
 			// not in FS, in db
 		} else if fpRel > dbData.Path {
-			if err = r.RemoveFile(dbData); err != nil {
+			if err = r.RemoveFileData(dbData); err != nil {
 				return false, err
 			}
 
@@ -204,11 +205,11 @@ func processPackIndex(r *Repo, fullmode bool, pack string) (bool, error) {
 			}
 			dbInd++
 		} else {
-			return false, &internalError{
-				Text:   "что-то пошло не так при обходе списков файлов",
+			msg := "что-то пошло не так при обходе списков файлов пакета %s"
+			return false, &InternalError{
+				Text:   fmt.Sprintf(msg, pack),
 				Caller: "Index",
 			}
-
 		}
 		continue
 	}

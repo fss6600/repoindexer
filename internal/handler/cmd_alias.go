@@ -17,7 +17,7 @@ func Alias(r *Repo, cmd string, aliases []string) error {
 		for _, alias := range aliases {
 			alias := strings.Split(alias, "=")
 			if len(alias) != 2 {
-				return &internalError{
+				return &InternalError{
 					Text:   fmt.Sprintf("неверный псевдоним - %q\n\n\tформат: alias set ПАКЕТ=ПСЕВДОНИМ", alias[0]),
 					Caller: "Alias",
 				}
@@ -35,7 +35,7 @@ func Alias(r *Repo, cmd string, aliases []string) error {
 			} else if l == 2 {
 				alias = als[1]
 			} else {
-				return &internalError{
+				return &InternalError{
 					Text:   fmt.Sprintf("неверный псевдоним - %q\n\n\tформат: alias del [ПАКЕТ=]ПСЕВДОНИМ", alias[0]),
 					Caller: "Alias",
 				}
@@ -56,7 +56,7 @@ func Alias(r *Repo, cmd string, aliases []string) error {
 			}
 		}
 	default:
-		return &internalError{
+		return &InternalError{
 			Text:   fmt.Sprintf("неверная команда %q. укажите одну из [ 'set' | 'del' | 'show' ]", cmd),
 			Caller: "Alias",
 		}

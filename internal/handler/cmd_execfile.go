@@ -21,8 +21,7 @@ func ExecFile(r *Repo, cmd string, packs []string) error {
 	switch cmd {
 	case "check", "set":
 		if packsCount == 0 && cmd == "set" {
-			switch UserAccept("Обработать данные об исполняемом файле во всех пакетах?") {
-			case false:
+			if !UserAccept("Обработать данные об исполняемом файле во всех пакетах?") {
 				return nil
 			}
 		}
@@ -60,7 +59,7 @@ func ExecFile(r *Repo, cmd string, packs []string) error {
 			fmt.Printf("\t%v: %v\n", pack, execFile)
 		}
 	default:
-		return &internalError{
+		return &InternalError{
 			Text:   fmt.Sprintf("неверная команда '%v'. укажите одну из [ 'check' | 'set' | 'del' | 'show' ]", cmd),
 			Caller: "ExecFile",
 		}

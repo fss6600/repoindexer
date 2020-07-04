@@ -53,7 +53,10 @@ func ClearDB(r *Repo, cmd string) error {
 		}
 		fmt.Println("OK")
 	default:
-		return fmt.Errorf("укажите одну категорию из списка: index | alias | status | all")
+		return &InternalError{
+			Text:   "укажите одну категорию из списка: index | alias | status | all",
+			Caller: "ClearDB",
+		}
 	}
 	if cmd == "alias" {
 		fmt.Println(doPopMsg)

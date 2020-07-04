@@ -20,8 +20,6 @@ var (
 	flagFullIndex, flagDebug, flagVersion bool
 )
 
-const tmplErrMsg = "main:"
-
 // STDINWAIT период времени для таймера ожидания ввода с stdin
 const STDINWAIT = time.Millisecond * 50
 
@@ -34,6 +32,8 @@ func init() {
 	var rp string
 	if cnf, err := readConfFromJSON(); err == nil {
 		rp = cnf.Repo
+	} else {
+		fmt.Println(err)
 	}
 	// обработка флагов и переменных
 	flag.StringVar(&repoPath, "r", rp, "*полный путь к репозиторию")
@@ -69,7 +69,7 @@ func run() {
 	// инициализация репозитория
 	case "init":
 		if err = h.InitDB(repoPath); err != nil {
-			log.Fatalf("ошибка при инициализации репозитория '%s\n':", repoPath)
+			fatal(err)
 		}
 		return // выходим, чтобы не инициализировать подключение к БД
 
@@ -82,22 +82,22 @@ func run() {
 		}
 		// установка режима регламента
 		if err = h.SetReglamentMode(repoPath, mode); err != nil {
-			log.Fatal(err)
+			fatal(err)
 		}
 		return // выходим, чтобы не инициализировать подключение к БД
 	}
 
 	// инициализация и подключение к БД
-	pRepo, err := h.NewRepoObj(repoPath)
+	pRepo, err := h.NewRepo(repoPath)
 	if err != nil {
-		log.Fatal(err)
+		fatal(err)
 	}
 	if err = pRepo.OpenDB(); err != nil {
-		log.Fatal(err)
+		fatal(err)
 	}
 	defer func() {
 		if err = pRepo.Close(); err != nil {
-			log.Fatal(err)
+			fatal(err)
 		}
 	}()
 
@@ -113,13 +113,13 @@ func run() {
 			packs = pRepo.ActivePacks() // активные
 		}
 		if err = h.Index(pRepo, flagFullIndex, packs); err != nil {
-			log.Fatal(err)
+			fatal(err)
 		}
 
 	// выгрузка данных индексации из БД в Index.gz
 	case "pop", "populate":
 		if err = h.Populate(pRepo); err != nil {
-			log.Fatal(err)
+			fatal(err)
 		}
 
 	// обработка исполняемых файлов пакетов
@@ -134,7 +134,7 @@ func run() {
 		cmd = cmdExecFile.Args()[0]
 		packs = cmdExecFile.Args()[1:]
 		if err = h.ExecFile(pRepo, cmd, packs); err != nil {
-			log.Fatal(err)
+			fatal(err)
 		}
 
 	// активация/блокировка пакетов в репозитории
@@ -155,7 +155,7 @@ func run() {
 			err = h.SetPackStatus(pRepo, h.PackStatusBlocked, packetsList)
 		}
 		if err != nil {
-			log.Fatal(err)
+			fatal(err)
 		}
 
 	// присвоение/удаление/отображение псевдонимов
@@ -179,7 +179,7 @@ func run() {
 			}
 		}
 		if err = h.Alias(pRepo, cmd, aliases); err != nil {
-			log.Fatal(err)
+			fatal(err)
 		}
 
 	// вывод перечня и статус пакетов в репозитории
@@ -192,7 +192,7 @@ func run() {
 			cmd = cmdList.Args()[0]
 		}
 		if err = h.List(pRepo, cmd); err != nil {
-			log.Fatal(err)
+			fatal(err)
 		}
 
 	// упаковка и переиндексация данных в БД
@@ -200,7 +200,7 @@ func run() {
 		fmt.Print("Упаковка БД: ")
 		if err = pRepo.Clean(); err != nil {
 			fmt.Println()
-			log.Fatal(err)
+			fatal(err)
 		}
 		fmt.Println("OK")
 
@@ -214,19 +214,19 @@ func run() {
 			cmd = cmdClearDB.Args()[0]
 		}
 		if err = h.ClearDB(pRepo, cmd); err != nil {
-			log.Fatal(err)
+			fatal(err)
 		}
 
 	// вывод информации о репозитории
 	case "status":
 		if err = h.RepoStatus(pRepo); err != nil {
-			log.Fatal(err)
+			fatal(err)
 		}
 
 	// миграция БД
 	case "migrate":
 		if err = h.MigrateDB(pRepo); err != nil {
-			log.Fatal(err)
+			fatal(err)
 		}
 
 	default:
@@ -263,7 +263,7 @@ func readDataFromStdin() []string {
 func newFlagSet(name string) *flag.FlagSet {
 	f := flag.NewFlagSet(name, flag.ErrorHandling(1))
 	if err = f.Parse(flag.Args()[1:]); err != nil {
-		log.Fatalf("Indexer: ошибка установки flagset %v", err)
+		log.Fatalf("ошибка установки flagset %v", err)
 	}
 	return f
 }
@@ -280,12 +280,13 @@ func readConfFromJSON() (conf, error) {
 		if err != nil {
 			return cnf, err
 		}
-		err = json.Unmarshal(buf, &cnf)
-		switch err.(type) {
-		case *json.SyntaxError:
-			fmt.Println("неверный синтаксис файла настроек", err)
-		default:
-			return cnf, fmt.Errorf("ошибка чтения конфигурации - %v", err)
+		if err = json.Unmarshal(buf, &cnf); err != nil {
+			switch err.(type) {
+			case *json.SyntaxError:
+				fmt.Println("неверный синтаксис файла настроек", err)
+			default:
+				return cnf, fmt.Errorf("ошибка чтения конфигурации - %v", err)
+			}
 		}
 	}
 	return cnf, nil
@@ -320,4 +321,17 @@ func printUsage() {
 	for _, comm := range commands {
 		fmt.Printf("  %v\n  - %v\n", comm[0], comm[1])
 	}
+}
+
+func fatal(e error) {
+	switch e.(type) {
+	case *h.InternalError:
+		if flagDebug {
+			msg := fmt.Sprintf("%s\n", e.(*h.InternalError).Text)
+			msg += fmt.Sprintf("Caller: %s\n", e.(*h.InternalError).Caller)
+			msg += fmt.Sprintf("Original error: %v\n", e.(*h.InternalError).Err)
+			log.Fatal(msg)
+		}
+	}
+	log.Fatalln(e)
 }

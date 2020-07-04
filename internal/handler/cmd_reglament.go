@@ -16,12 +16,12 @@ func SetReglamentMode(repoPath, mode string) error {
 	)
 	// проверка на наличие файла-флага, определение режима регламента
 	fRegl := filepath.Join(repoPath, fnReglament)
-	modeOn := reglIsSet(repoPath)
+	modeIsOn := reglIsSet(repoPath)
 
 	switch mode {
 	// вывод режима регламента
-	case "":
-		if modeOn {
+	case "", "status":
+		if modeIsOn {
 			fmt.Println(reglOnMessage)
 		} else {
 			fmt.Println(reglOffMessage)
@@ -29,14 +29,14 @@ func SetReglamentMode(repoPath, mode string) error {
 		// активация режима регламента
 	case "on":
 		// регламент уже активирован - вывод сообщения и информации кто активировал
-		if modeOn {
+		if modeIsOn {
 			owner, _ := ioutil.ReadFile(fRegl)
 			fmt.Println(reglOnMessage, string(owner))
 			// активация регламента с записью информации кто активировал
 		} else {
 			err = ioutil.WriteFile(fRegl, TaskOwnerInfo(), 0644)
 			if err != nil {
-				return &internalError{
+				return &InternalError{
 					Text:   "ошибка установки режима регламента",
 					Caller: "Reglament::writeFile",
 					Err:    err,
@@ -47,9 +47,9 @@ func SetReglamentMode(repoPath, mode string) error {
 	// деактивация режима регламента
 	case "off":
 		// регламент активирован - удаляем файл
-		if modeOn {
+		if modeIsOn {
 			if err = os.Remove(fRegl); err != nil {
-				return &internalError{
+				return &InternalError{
 					Text:   "ошибка снятия режима регламента",
 					Caller: "Reglament::removeFile",
 					Err:    err,
@@ -58,7 +58,7 @@ func SetReglamentMode(repoPath, mode string) error {
 		}
 		fmt.Println(reglOffMessage)
 	default:
-		return &internalError{
+		return &InternalError{
 			Text:   fmt.Sprintf("неверный режим регламента: %s", mode),
 			Caller: "Reglament",
 		}
@@ -73,7 +73,7 @@ func reglIsSet(repo string) bool {
 
 func checkRegl(repoPath string) error {
 	if !reglIsSet(repoPath) {
-		return &internalError{
+		return &InternalError{
 			Text:   "не установлен режим регламента",
 			Caller: "Reglament::checkRegl",
 		}

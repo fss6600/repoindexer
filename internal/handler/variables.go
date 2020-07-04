@@ -2,27 +2,18 @@ package handler
 
 import (
 	"database/sql"
-	"fmt"
 	"time"
 )
 
-// internalError структура возвращаемой ошибки из handler
-type internalError struct {
+// InternalError структура возвращаемой ошибки из handler
+type InternalError struct {
 	Text   string // текст ошибки
 	Caller string // вызвавший объект
 	Err    error  // оригинальная ошибка
 }
 
-func (e *internalError) Error() (msg string) {
-	if e.Caller != "" {
-		msg = fmt.Sprintf("%s: %s", e.Caller, e.Text)
-	} else {
-		msg = e.Text
-	}
-	if e.Err != nil {
-		msg += fmt.Sprintf("\noriginal: %v", e.Err)
-	}
-	return
+func (e *InternalError) Error() string {
+	return e.Text
 }
 
 var err error
@@ -36,9 +27,6 @@ const (
 	// DBVersionMinor minor ver DB
 	DBVersionMinor int64 = 4
 )
-
-// ErrAlias ошибка обработки псевдонима
-type ErrAlias error
 
 // general
 const (

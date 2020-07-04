@@ -40,7 +40,7 @@ func Populate(r *Repo) error {
 	}
 
 	if len(packDataList) == 0 {
-		return &internalError{
+		return &InternalError{
 			Text:   "нет данных - требуется индексация репозитория",
 			Caller: "Populate",
 		}
@@ -49,21 +49,21 @@ func Populate(r *Repo) error {
 	var jsonData []byte
 	jsonData, _ = json.MarshalIndent(packDataList, "", "  ")
 
-	fp := path.Join(r.Path(), IndexGZ)
+	fpIndex := path.Join(r.path, IndexGZ)
 
 	// выгрузка данных из БД в json файл
-	if err = writeGzip(jsonData, fp); err != nil {
+	if err = writeGzip(jsonData, fpIndex); err != nil {
 		return err
 	}
 
 	// подсчет hash суммы индекс-файла
-	hash, err := HashSumFile(fp)
+	hash, err := HashSumFile(fpIndex)
 	if err != nil {
 		return err
 	}
 
 	// запись хэш-суммы индекс-файла
-	if err = writeGzipHash(fp, hash); err != nil {
+	if err = writeGzipHash(fpIndex, hash); err != nil {
 		return err
 	}
 	fmt.Println("OK")
@@ -73,7 +73,7 @@ func Populate(r *Repo) error {
 func writeGzipHash(fp, hash string) error {
 	indexFileHash, err := os.Create(fp + ".sha1")
 	if err != nil {
-		return &internalError{
+		return &InternalError{
 			Text:   fmt.Sprintf("ошибка создания файла %s", fp),
 			Caller: "Populate",
 			Err:    err,
@@ -92,7 +92,7 @@ func writeGzipHash(fp, hash string) error {
 func writeGzip(jsonData []byte, fp string) error {
 	indexFile, err := os.Create(fp)
 	if err != nil {
-		return &internalError{
+		return &InternalError{
 			Text:   fmt.Sprintf("ошибка создания файла %s", fp),
 			Caller: "Populate::writeGzip",
 			Err:    err,
@@ -106,7 +106,7 @@ func writeGzip(jsonData []byte, fp string) error {
 
 	_, err = zw.Write(jsonData)
 	if err != nil {
-		return &internalError{
+		return &InternalError{
 			Text:   fmt.Sprintf("ошибка сохранения файла %s", fp),
 			Caller: "Populate::writeGzip",
 			Err:    err,

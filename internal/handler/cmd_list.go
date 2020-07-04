@@ -36,7 +36,7 @@ func List(r *Repo, cmd string) error {
 			fmt.Println(pack)
 		}
 	default:
-		return &internalError{
+		return &InternalError{
 			Text:   fmt.Sprintf("неверно указана команда: %q", cmd),
 			Caller: "List",
 		}

@@ -16,18 +16,18 @@ func MigrateDB(r *Repo) error {
 		"\nУбедитесь, что у Вас есть резервная копия") {
 		return nil
 	}
-	fmt.Println("")
+	fmt.Println()
 	vMaj, vMin, err := r.VersionDB()
 	if err != nil {
 		return err
 	}
 	if DBVersionMajor > vMaj {
-		return &internalError{
+		return &InternalError{
 			Text:   "\n\tтребуется переиндексация репозитория",
 			Caller: "Migrate",
 		}
 	} else if DBVersionMajor < vMaj || DBVersionMinor < vMin {
-		return &internalError{
+		return &InternalError{
 			Text:   "возможно вы используете старую версию программы",
 			Caller: "Migrate",
 		}
