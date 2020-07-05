@@ -175,7 +175,7 @@ func defineExecFile(r *Repo, pack string) (string, error) {
 
 // showEmptyExecFiles выводит на консоль список пакетов, для которых требуется указать исполняемый файл
 func showEmptyExecFiles(r *Repo) {
-	emptyList := r.emptyExecFilesList()
+	emptyList := r.nullExecFilesList()
 	if len(emptyList) > 0 {
 		fmt.Println("\n\tДля следующих пакетов требуется указать исполняемый файл:")
 		for _, pack := range emptyList {

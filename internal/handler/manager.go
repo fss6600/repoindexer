@@ -268,7 +268,8 @@ func (r *Repo) disabledPacks() []string {
 // и передает по каналу
 func (r *Repo) hashedPackages(packs chan HashedPackData) error {
 	defer close(packs)
-	rows, err := r.db.Query("SELECT id, name, hash, exec FROM packages ORDER BY name;")
+	sqlString := "SELECT id, name, hash, size, fcnt, exec FROM packages ORDER BY name;"
+	rows, err := r.db.Query(sqlString)
 	if err == sql.ErrNoRows {
 		return nil
 	} else if err != nil {
@@ -284,7 +285,8 @@ func (r *Repo) hashedPackages(packs chan HashedPackData) error {
 	var filesPackDB []*FileInfo
 
 	for rows.Next() {
-		if err = rows.Scan(&pData.ID, &pData.Name, &pData.Hash, &pData.Exec); err != nil {
+		if err = rows.Scan(&pData.ID, &pData.Name, &pData.Hash, &pData.Size,
+			&pData.Fcnt, &pData.Exec); err != nil {
 			return &InternalError{
 				Text:   "ошибка выборки пакетов",
 				Caller: "Manager::HashedPackages",
@@ -571,27 +573,35 @@ func (r *Repo) cleanStatusDB() error {
 	return nil
 }
 
-// hashSumPack подсчет контрольной суммы пакета по основанию сумм файлов
-func (r *Repo) hashSumPack(id int64) error {
-	var hash, hTotal string
-	rows, _ := r.db.Query("SELECT hash FROM files WHERE package_id=?;", id)
+// updatePackData подсчет контрольной суммы пакета по основанию сумм файлов
+func (r *Repo) updatePackData(id int64) error {
+	var (
+		fHash, hashTotal          string
+		fCount, fSize, fSizeTotal int64
+	)
+	rows, _ := r.db.Query("SELECT hash, size FROM files WHERE package_id=?;", id)
 	defer rows.Close()
 	for rows.Next() {
-		_ = rows.Scan(&hash)
-		hTotal += hash
+		_ = rows.Scan(&fHash, &fSize)
+		hashTotal += fHash
+		fSizeTotal += fSize
 	}
-	hash = hashSum(hTotal)
-	res, err := r.db.Exec("UPDATE packages SET hash=? WHERE id=?;", hash, id)
+	row := r.db.QueryRow("SELECT COUNT(*) FROM files WHERE package_id=?;", id)
+	row.Scan(&fCount)
+	hashTotal = hashSum(hashTotal)
+
+	sqlString := "UPDATE packages SET hash=?,size=?,fcnt=? WHERE id=?;"
+	res, err := r.db.Exec(sqlString, hashTotal, fSizeTotal, fCount, id)
 	if err != nil {
 		return &InternalError{
-			Text:   "ошибка подсчета контрольной суммы",
+			Text:   "ошибка обновления данных пакета",
 			Caller: "Manager::HashSumPack",
 			Err:    err,
 		}
 	}
 	if c, _ := res.RowsAffected(); c == 0 {
 		return &InternalError{
-			Text:   "ошибка подсчета контрольной суммы",
+			Text:   "ошибка обновления данных пакета",
 			Caller: "Manager::HashSumPack::Count0",
 			Err:    err,
 		}
@@ -769,18 +779,21 @@ func (r *Repo) checkDBVersion() error {
 	return nil
 }
 
-// emptyExecFilesList возвращает список пакетов с пустыми значениями данных об исполняемых файлах
-func (r *Repo) emptyExecFilesList() []string {
+// nullExecFilesList возвращает список пакетов с пустыми значениями данных об исполняемых файлах
+func (r *Repo) nullExecFilesList() []string {
 	var name string
-	var emptyList []string
+	var nullExecList []string
 
-	rows, _ := r.db.Query("SELECT name FROM packages WHERE exec is null;")
+	rows, err := r.db.Query("SELECT name FROM packages WHERE exec is null;")
+	if err != nil {
+		log.Fatal(err)
+	}
 	defer rows.Close()
 	for rows.Next() {
 		_ = rows.Scan(&name)
-		emptyList = append(emptyList, name)
+		nullExecList = append(nullExecList, name)
 	}
-	return emptyList
+	return nullExecList
 }
 
 // versionDB возвращает версию структуры БД
@@ -896,7 +909,7 @@ func (r *Repo) execFileInfo(pack string) (string, error) {
 
 // checkEmptyExecFiles проверяет на наличие не установленных исполняемых файлах пакетов в репозитории
 func (r *Repo) checkEmptyExecFiles() error {
-	if len(r.emptyExecFilesList()) > 0 {
+	if len(r.nullExecFilesList()) > 0 {
 		return &InternalError{
 			Text: "\n\tТребуется определить исполняемые файлы\n\t" +
 				"Запустите программу с командой 'exec check'\n",

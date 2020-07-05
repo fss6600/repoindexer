@@ -25,7 +25,7 @@ const (
 	// DBVersionMajor major ver DB
 	DBVersionMajor int64 = 1
 	// DBVersionMinor minor ver DB
-	DBVersionMinor int64 = 4
+	DBVersionMinor int64 = 5
 )
 
 // general
@@ -49,6 +49,8 @@ type HashedPackData struct {
 	Name  string            `json:"-"`
 	Alias string            `json:"alias"`
 	Hash  string            `json:"phash"`
+	Size  int64             `json:"size"`
+	Fcnt  int64             `json:"fcnt"`
 	Exec  string            `json:"execf"`
 	Files map[string]string `json:"files"`
 }

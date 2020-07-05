@@ -12,7 +12,8 @@ CREATE TABLE packages
     name  VARCHAR     NOT NULL UNIQUE,
     hash  VARCHAR(40) NOT NULL,
     size  INTEGER DEFAULT 0,
-    fcnt  INTEGER DEFAULT 0
+    fcnt  INTEGER DEFAULT 0,
+    exec  VARCHAR
 );
 CREATE UNIQUE INDEX idx_packages
     ON packages (name);

@@ -69,10 +69,10 @@ func Index(r *Repo, fullmode bool, packs []string) error {
 // processPackIndex обрабатывает (индексирует) файлы в указанном пакете
 func processPackIndex(r *Repo, fullmode bool, pack string) (bool, error) {
 	var (
+		fsInd, dbInd             int         // counters
 		packID                   int64       // ID пакета
 		dbData, fInfo            *FileInfo   // указатель на объект с данными файла
 		fsList, dbList           []*FileInfo // список файлов пакета в БД
-		fsInd, dbInd             int         // counters
 		packChanged, fileChanged bool        // package has changes
 		fpRel                    string      // путь к файлу относительно пакета
 	)
@@ -216,7 +216,7 @@ func processPackIndex(r *Repo, fullmode bool, pack string) (bool, error) {
 
 	// пересчитываем контрольную сумму пакета при наличии изменений файлов
 	if packChanged {
-		if err = r.hashSumPack(packID); err != nil {
+		if err = r.updatePackData(packID); err != nil {
 			return false, err
 		}
 	}
