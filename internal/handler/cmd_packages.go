@@ -1,28 +1,23 @@
-package proc
+package handler
 
 import (
 	"fmt"
-
-	"github.com/pmshoot/repoindexer/cmd/indexer/internal/obj"
-	"github.com/pmshoot/repoindexer/cmd/indexer/internal/utils"
 )
 
-type PackStatus int
-
 // SetPackStatus активирует или блокирует пакет для индексации
-func SetPackStatus(r *obj.Repo, status PackStatus, packs []string) {
-	const errPackMsg = errMsg + ":packages::SetPackStatus:"
-	done := false
-
+func SetPackStatus(r *Repo, status int, packs []string) error {
+	var done bool
 	switch status {
 	// активация пакетов
-	case PackStateEnable:
+	case PackStatusActive:
 		for _, pack := range packs {
-			if !r.PackIsBlocked(pack) {
+			if !r.packIsBlocked(pack) {
 				fmt.Printf("[ %v ] уже в актуальном состоянии\n", pack)
 				continue
 			}
-			err = r.EnablePack(pack)
+			if err = r.enablePack(pack); err != nil {
+				return err
+			}
 			done = true
 		}
 		if done {
@@ -30,25 +25,26 @@ func SetPackStatus(r *obj.Repo, status PackStatus, packs []string) {
 			fmt.Println(doPopMsg)
 		}
 	// блокирование пакетов
-	case PackStateDisable:
+	case PackStatusBlocked:
 		for _, pack := range packs {
-			if r.PackIsBlocked(pack) {
+			if r.packIsBlocked(pack) {
 				fmt.Printf("[ %v ] уже заблокирован\n", pack)
 				continue
 			}
-			if !r.PackIsActive(pack) {
+			if !r.packIsActive(pack) {
 				fmt.Printf("[ %v ] не найден\n", pack)
 				continue
 			}
-			err = r.DisablePack(pack)
+			err = r.disablePack(pack)
 			done = true
 		}
 		// очистка БД от данных заблокированных пакетов
 		if done {
-			err = r.CleanPacks()
-			utils.CheckError(fmt.Sprintf("%v", errPackMsg), &err)
+			if err = r.cleanPacks(); err != nil {
+				return err
+			}
 			fmt.Println(doPopMsg)
 		}
 	}
-	utils.CheckError(fmt.Sprintf("%v", errPackMsg), &err)
+	return nil
 }
