@@ -1,21 +1,20 @@
-package proc
+package handler
 
 import (
 	"fmt"
-
-	"github.com/pmshoot/repoindexer/cmd/indexer/internal/obj"
-	"github.com/pmshoot/repoindexer/cmd/indexer/internal/utils"
 )
 
 // RepoStatus обрабатывает команду `status`
 // выводит актуальную информацию о репозитории
-func RepoStatus(r *obj.Repo) {
-	const errRStatMsg = errMsg + ":status:"
-	rData, err := r.Status()
-	utils.CheckError(errRStatMsg, &err)
+func RepoStatus(r *Repo) error {
+	const timeLayout = "2006-01-02 15:04:05"
+	rData, err := r.repoStatus()
+	if err != nil {
+		return err
+	}
 
 	var reglStatus string
-	switch reglIsSet(r.Path()) {
+	switch reglIsSet(r.path) {
 	case true:
 		reglStatus = "on"
 	default:
@@ -23,17 +22,17 @@ func RepoStatus(r *obj.Repo) {
 	}
 
 	unIndexed := rData.TotalCnt - (rData.IndexedCnt + rData.BlockedCnt)
-	tmpl := "%-40s%v\n"
+	template := "%-40s%v\n"
 
-	fmt.Printf(tmpl, "Статус регламента", reglStatus)
+	fmt.Printf(template, "Статус регламента", reglStatus)
 	fmt.Println()
-	fmt.Printf(tmpl, "Пакетов в репозитории", rData.TotalCnt)
-	fmt.Printf(tmpl, "Пакетов проиндексировано", rData.IndexedCnt)
-	fmt.Printf(tmpl, "Пакетов заблокировано", rData.BlockedCnt)
+	fmt.Printf(template, "Пакетов в репозитории", rData.TotalCnt)
+	fmt.Printf(template, "Пакетов проиндексировано", rData.IndexedCnt)
+	fmt.Printf(template, "Пакетов заблокировано", rData.BlockedCnt)
 	if unIndexed > 0 {
-		fmt.Printf(tmpl, "Пакетов непроиндексировано", unIndexed)
+		fmt.Printf(template, "Пакетов непроиндексировано", unIndexed)
 	} else if unIndexed < 0 {
-		fmt.Printf(tmpl, "Удалено пакетов из репозитория", unIndexed*-1)
+		fmt.Printf(template, "Удалено пакетов из репозитория", unIndexed*-1)
 	}
 	fmt.Println()
 	if rData.DBSize > -1 {
@@ -53,19 +52,20 @@ func RepoStatus(r *obj.Repo) {
 	}
 	fmt.Println()
 
-	vMaj, vMin, err := r.VersionDB()
+	vMaj, vMin, err := r.versionDB()
 	if err != nil {
-		panic("\n\tНе удалось получить версию БД. Требуется переиндексация репозитория")
+		return err
 	}
 
-	tmpl = "Версия БД %-40s%d.%d\n"
-	fmt.Printf(tmpl, "программы: ", obj.DBVersionMajor, obj.DBVersionMinor)
-	fmt.Printf(tmpl, "репозитория: ", vMaj, vMin)
+	template = "Версия БД %-40s%d.%d\n"
+	fmt.Printf(template, "программы: ", DBVersionMajor, DBVersionMinor)
+	fmt.Printf(template, "репозитория: ", vMaj, vMin)
 
-	err = r.CheckDBVersion()
-	utils.CheckError("", &err)
+	if err = r.checkDBVersion(); err != nil {
+		return err
+	}
 
-	obj.ShowEmptyExecFiles(r) // проверка на пустые исполняемый файлы
+	showEmptyExecFiles(r) // проверка на пустые исполняемый файлы
 
 	if unIndexed > 0 || unIndexed < 0 {
 		fmt.Println(doIndexMsg)
@@ -76,4 +76,5 @@ func RepoStatus(r *obj.Repo) {
 		fmt.Print("\n\tИндекс-файл старше файла БД")
 		fmt.Println(doPopMsg)
 	}
+	return nil
 }

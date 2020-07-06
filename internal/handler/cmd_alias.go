@@ -1,10 +1,8 @@
-package proc
+package handler
 
 import (
 	"fmt"
 	"strings"
-
-	"github.com/pmshoot/repoindexer/cmd/indexer/internal/obj"
 )
 
 // Alias обрабатывает команду alias
@@ -13,22 +11,19 @@ import (
 // (или параметры через пробел) вида ПАКЕТ=ПСЕВДОНИМ
 // del - удаляет псевдоним пакета принимает параметр
 // (или параметры через пробел) с именем пакета или наименованием псевдонима
-func Alias(r *obj.Repo, cmd string, aliases []string) {
-	const errAliasMsg = errMsg + ":Alias:"
-
+func Alias(r *Repo, cmd string, aliases []string) error {
 	switch cmd {
 	case "set":
 		for _, alias := range aliases {
 			alias := strings.Split(alias, "=")
 			if len(alias) != 2 {
-				throw(alias[0])
-			}
-			if err = r.SetAlias(alias); err != nil {
-				if er, ok := err.(obj.ErrAlias); ok {
-					panic(fmt.Sprintf("%v\n", er))
-				} else {
-					panic(fmt.Errorf("%v:%v:%v", errAliasMsg, "set", err))
+				return &InternalError{
+					Text:   fmt.Sprintf("неверный псевдоним - %q\n\n\tформат: alias set ПАКЕТ=ПСЕВДОНИМ", alias[0]),
+					Caller: "Alias",
 				}
+			}
+			if err = r.setAlias(alias); err != nil {
+				return err
 			}
 		}
 		fmt.Println(doPopMsg)
@@ -40,20 +35,19 @@ func Alias(r *obj.Repo, cmd string, aliases []string) {
 			} else if l == 2 {
 				alias = als[1]
 			} else {
-				throw(alias)
-			}
-			if err = r.DelAlias(alias); err != nil {
-				if er, ok := err.(obj.ErrAlias); ok {
-					panic(fmt.Sprintf("%v\n", er))
-				} else {
-					panic(fmt.Errorf("%v:%v%v", errAliasMsg, "del", err))
+				return &InternalError{
+					Text:   fmt.Sprintf("неверный псевдоним - %q\n\n\tформат: alias del [ПАКЕТ=]ПСЕВДОНИМ", alias[0]),
+					Caller: "Alias",
 				}
+			}
+			if err = r.delAlias(alias); err != nil {
+				return err
 			}
 		}
 		fmt.Println(doPopMsg)
 	case "", "show":
 		// show alias info
-		aliases := r.Aliases()
+		aliases := r.aliases()
 		if len(aliases) == 0 {
 			fmt.Println("Список псевдонимов пуст")
 		} else {
@@ -62,11 +56,10 @@ func Alias(r *obj.Repo, cmd string, aliases []string) {
 			}
 		}
 	default:
-		panic(fmt.Sprintf("неверная соманда '%v'. укажите одну из [ 'set' | 'del' | 'show' ]\n", cmd))
+		return &InternalError{
+			Text:   fmt.Sprintf("неверная команда %q. укажите одну из [ 'set' | 'del' | 'show' ]", cmd),
+			Caller: "Alias",
+		}
 	}
-}
-
-func throw(alias string) {
-	panic(fmt.Sprintf("неверно задан псевдоним - (%v)\n\n\t"+
-		"формат: alias set ПАКЕТ=ПСЕВДОНИМ", alias))
+	return nil
 }

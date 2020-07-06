@@ -1,42 +1,45 @@
-package proc
+package handler
 
 import (
 	"fmt"
-
-	"github.com/pmshoot/repoindexer/cmd/indexer/internal/obj"
 )
 
 // List выводит на консоль информацию о статусе пакетов в репозитории
-func List(r *obj.Repo, cmd string) {
+func List(r *Repo, cmd string) error {
+	const tmplListOut = "[%4v] %v\n"
 	switch cmd {
 	case "all":
-		ch := make(chan *obj.ListData)
+		ch := make(chan *ListData)
 		fmt.Printf(tmplListOut, "СТАТ", "ПАКЕТ (ПСЕВДОНИМ)")
 		fmt.Println("------", "-----------------")
-		go r.List(ch)
+		go r.listIndexedPacks(ch)
 		for data := range ch {
 			switch data.Status {
-			case obj.PackStatusBlocked:
+			case PackStatusBlocked:
 				fmt.Printf(tmplListOut, "блок", data.Name)
-			case obj.PackStatusActive:
+			case PackStatusActive:
 				fmt.Printf(tmplListOut, "", data.Name)
-			case obj.PackStatusNotIndexed:
+			case PackStatusNotIndexed:
 				fmt.Printf(tmplListOut, "!инд", data.Name)
 			}
 		}
 	case "indexed":
-		for _, pack := range r.Packages() {
+		for _, pack := range r.packages() {
 			fmt.Println(pack)
 		}
 	case "noindexed":
-		for _, pack := range r.NoIndexedPacks() {
+		for _, pack := range r.notIndexedPacks() {
 			fmt.Println(pack)
 		}
 	case "blocked":
-		for _, pack := range r.DisabledPacks() {
+		for _, pack := range r.disabledPacks() {
 			fmt.Println(pack)
 		}
 	default:
-		panic(fmt.Sprintf("неверно указана команда: %v", cmd))
+		return &InternalError{
+			Text:   fmt.Sprintf("неверно указана команда: %q", cmd),
+			Caller: "List",
+		}
 	}
+	return nil
 }

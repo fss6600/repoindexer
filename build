@@ -1,6 +1,6 @@
 #!/bin/bash
 clear
 
-GOARCH=386 CGO_ENABLED=1 CGO_LDFLAGS="-g -O2 -w -s" go build -i -x -o bin/indexer ./cmd/indexer
+CGO_ENABLED=1 CGO_LDFLAGS="-w -s" go build -x -o bin/indexer ./cmd/indexer
 
 #upx -6 bin/indexer

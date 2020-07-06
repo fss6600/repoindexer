@@ -1,8 +1,39 @@
-package obj
+package handler
 
 import (
 	"database/sql"
 	"time"
+)
+
+// InternalError структура возвращаемой ошибки из handler
+type InternalError struct {
+	Text   string // текст ошибки
+	Caller string // вызвавший объект
+	Err    error  // оригинальная ошибка
+}
+
+func (e *InternalError) Error() string {
+	return e.Text
+}
+
+var err error
+
+const (
+	fileDBName string = "index.db"
+	// IndexGZ индекс-файл
+	IndexGZ string = "index.gz"
+	// DBVersionMajor major ver DB
+	DBVersionMajor int64 = 1
+	// DBVersionMinor minor ver DB
+	DBVersionMinor int64 = 5
+)
+
+// general
+const (
+	fnReglament = "__REGLAMENT__"
+	doPopMsg    = "\n\tВыгрузите данные в индекс-файл командой 'pop'\n"
+	doIndexMsg  = "\n\tПроиндексируйте пакеты командой 'index [...pacnames]'\n"
+	noChangeMsg = "Изменений нет\n"
 )
 
 // статусы пакета
@@ -18,6 +49,8 @@ type HashedPackData struct {
 	Name  string            `json:"-"`
 	Alias string            `json:"alias"`
 	Hash  string            `json:"phash"`
+	Size  int64             `json:"size"`
+	Fcnt  int64             `json:"fcnt"`
 	Exec  string            `json:"execf"`
 	Files map[string]string `json:"files"`
 }

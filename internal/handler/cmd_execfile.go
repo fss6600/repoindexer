@@ -1,13 +1,8 @@
-package proc
+package handler
 
 import (
 	"fmt"
-
-	"github.com/pmshoot/repoindexer/cmd/indexer/internal/obj"
-	"github.com/pmshoot/repoindexer/cmd/indexer/internal/utils"
 )
-
-const errExecFileMsg = ":ExecFile:"
 
 // ExecFile обрабатывает команду `exec` поиск и установка исполняемого файла
 // для пакета или всех пакетов в репозитории
@@ -15,7 +10,7 @@ const errExecFileMsg = ":ExecFile:"
 // set - установка данных об исполняемом файле
 // del - удаление данных об исполняемом файле
 // show - вывод информации об установленных исполняемых файлах пакета
-func ExecFile(r *obj.Repo, cmd string, packs []string) {
+func ExecFile(r *Repo, cmd string, packs []string) error {
 	packsCount := len(packs)
 
 	var force bool
@@ -26,9 +21,8 @@ func ExecFile(r *obj.Repo, cmd string, packs []string) {
 	switch cmd {
 	case "check", "set":
 		if packsCount == 0 && cmd == "set" {
-			switch utils.UserAccept("Обработать данные об исполняемом файле во всех пакетах?") {
-			case false:
-				return
+			if !userAccept("Обработать данные об исполняемом файле во всех пакетах?") {
+				return nil
 			}
 		}
 		if packsCount == 0 {
@@ -36,22 +30,21 @@ func ExecFile(r *obj.Repo, cmd string, packs []string) {
 		}
 		fmt.Print("Проверка (установка) исполняемого файла для пакета:\n\n")
 		for _, pack := range packs {
-
-			err = r.ExecFileSet(pack, force)
-			utils.CheckError(errExecFileMsg, &err)
+			if err = r.execFileSet(pack, force); err != nil {
+				return err
+			}
 		}
 	case "del":
 		if packsCount == 0 {
-			switch utils.UserAccept("Удалить данные об исполняемом файле во всех пакетах?") {
-			case true:
-				packs = r.ActivePacks()
-			case false:
-				return
+			if !userAccept("Удалить данные об исполняемом файле во всех пакетах?") {
+				return nil
 			}
+			packs = r.ActivePacks()
 		}
 		for _, pack := range packs {
-			err = r.ExecFileDel(pack)
-			utils.CheckError(errExecFileMsg, &err)
+			if err = r.execFileDel(pack); err != nil {
+				return err
+			}
 		}
 	case "show":
 		if packsCount == 0 {
@@ -59,11 +52,17 @@ func ExecFile(r *obj.Repo, cmd string, packs []string) {
 		}
 
 		for _, pack := range packs {
-			execFile, err := r.ExecFileInfo(pack)
-			utils.CheckError(errExecFileMsg, &err)
+			execFile, err := r.execFileInfo(pack)
+			if err != nil {
+				return err
+			}
 			fmt.Printf("\t%v: %v\n", pack, execFile)
 		}
 	default:
-		panic(fmt.Sprintf("неверная соманда '%v'. укажите одну из [ 'check' | 'set' | 'del' | 'show' ]\n", cmd))
+		return &InternalError{
+			Text:   fmt.Sprintf("неверная команда '%v'. укажите одну из [ 'check' | 'set' | 'del' | 'show' ]", cmd),
+			Caller: "ExecFile",
+		}
 	}
+	return nil
 }
