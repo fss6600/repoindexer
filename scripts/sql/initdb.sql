@@ -3,14 +3,17 @@ DROP TABLE IF EXISTS files;
 DROP TABLE IF EXISTS info;
 DROP TABLE IF EXISTS packages;
 DROP TABLE IF EXISTS aliases;
-DROP TABLE IF EXISTS exludes;
+DROP TABLE IF EXISTS excludes;
 
 -- Пакеты подсистем
 CREATE TABLE packages
 (
     id    INTEGER PRIMARY KEY AUTOINCREMENT,
     name  VARCHAR     NOT NULL UNIQUE,
-    hash  VARCHAR(40) NOT NULL
+    hash  VARCHAR(40) NOT NULL,
+    size  INTEGER DEFAULT 0,
+    fcnt  INTEGER DEFAULT 0,
+    exec  VARCHAR
 );
 CREATE UNIQUE INDEX idx_packages
     ON packages (name);
@@ -55,5 +58,3 @@ CREATE TABLE excludes
 );
 CREATE INDEX idx_excludes
     ON excludes (name);
-
-

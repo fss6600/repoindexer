@@ -1,0 +1,6 @@
+#!/bin/bash
+clear
+
+CGO_ENABLED=1 CGO_LDFLAGS="-w -s" go build -x -o bin/indexer ./cmd/indexer
+
+#upx -6 bin/indexer

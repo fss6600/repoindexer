@@ -1,0 +1,9 @@
+#!/bin/bash
+GOOS=windows
+GOARCH=386
+CGO_ENABLED=1
+CC=i686-w64-mingw32-gcc
+CGO_CFLAGS=-g -O2 -m32 -w -s
+CGO_LDFLAGS=-g -O2 -w -s
+env CC=$CC GOOS=$GOOS GOARCH=$GOARCH CGO_ENABLED=$CGO_ENABLED CGO_FLAGS=$CGO_FLAGS CGO_LDFLAGS=$CGO_LDFLAGS go build -x -o bin/win32/indexer.exe ./cmd/indexer
+upx -6 bin/win32/indexer.exe

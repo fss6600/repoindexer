@@ -1,4 +1,4 @@
-package obj
+package handler
 
 // from scripts/sql/initdb.sql
 
@@ -8,14 +8,17 @@ DROP TABLE IF EXISTS files;
 DROP TABLE IF EXISTS info;
 DROP TABLE IF EXISTS packages;
 DROP TABLE IF EXISTS aliases;
-DROP TABLE IF EXISTS exludes;
+DROP TABLE IF EXISTS excludes;
 
 -- Пакеты подсистем
 CREATE TABLE packages
 (
     id    INTEGER PRIMARY KEY AUTOINCREMENT,
-    Name  VARCHAR     NOT NULL UNIQUE,
-    hash  VARCHAR(40) NOT NULL
+    name  VARCHAR     NOT NULL UNIQUE,
+    hash  VARCHAR(40) NOT NULL,
+    size  INTEGER DEFAULT 0,
+    fcnt  INTEGER DEFAULT 0,
+    exec  VARCHAR
 );
 CREATE UNIQUE INDEX idx_packages
     ON packages (Name);
