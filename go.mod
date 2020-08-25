@@ -1,5 +1,5 @@
 module github.com/pmshoot/repoindexer
 
-go 1.14
+go 1.15
 
-require github.com/mattn/go-sqlite3 v2.0.3+incompatible
+require github.com/mattn/go-sqlite3 v1.14.1
