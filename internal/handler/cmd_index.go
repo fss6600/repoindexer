@@ -20,15 +20,6 @@ func Index(r *Repo, fullmode bool, packs []string) error {
 	if err = checkRegl(r.path); err != nil {
 		return err
 	}
-	// проверка пакета на блокировку
-	for _, pack := range packs {
-		if r.packIsBlocked(pack) {
-			return &InternalError{
-				Text:   fmt.Sprintf("пакет %q заблокирован", pack),
-				Caller: "Index",
-			}
-		}
-	}
 	// проверка на готовность БД
 	if err = r.setPrepare(); err != nil {
 		return err

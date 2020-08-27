@@ -162,7 +162,7 @@ func (r *Repo) aliases() [][]string {
 func (r *Repo) setAlias(alias []string) error {
 	pck := alias[0]
 	als := alias[1]
-	if !r.packIsActive(pck) {
+	if !r.PackIsActive(pck) {
 		return &InternalError{
 			Text:   fmt.Sprintf("пакет %q не найден или заблокирован", pck),
 			Caller: "Manager::SetAlias",
@@ -376,8 +376,8 @@ func (r *Repo) packIsBlocked(name string) bool {
 	return false
 }
 
-// packIsActive проверка отсутствия у пакета блокировки
-func (r *Repo) packIsActive(pack string) bool {
+// PackIsActive проверка наличия пакета или отсутствия у пакета блокировки
+func (r *Repo) PackIsActive(pack string) bool {
 	for _, fp := range r.ActivePacks() {
 		if fp == pack {
 			return true
@@ -448,7 +448,7 @@ func (r *Repo) cleanPacks() error {
 	r.disPacks = []string{}
 	r.indPacks = []string{}
 	for _, pack := range r.packages() { // проход по списку пакетов в БД
-		if !r.packIsActive(pack) {
+		if !r.PackIsActive(pack) {
 			if err = r.removePack(pack); err != nil {
 				return err
 			}

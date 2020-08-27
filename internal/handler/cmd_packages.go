@@ -31,7 +31,7 @@ func SetPackStatus(r *Repo, status int, packs []string) error {
 				fmt.Printf("[ %v ] уже заблокирован\n", pack)
 				continue
 			}
-			if !r.packIsActive(pack) {
+			if !r.PackIsActive(pack) {
 				fmt.Printf("[ %v ] не найден\n", pack)
 				continue
 			}

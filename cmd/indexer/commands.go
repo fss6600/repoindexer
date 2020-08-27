@@ -105,12 +105,22 @@ func run() {
 	//индексация файлов репозитория с записью в БД
 	case "index":
 		cmdIndex := newFlagSet("index")
+
+		//todo Добавить проверку на существование пакета в репозитории #2
+
 		packs := cmdIndex.Args() // из командной строки
 		if len(packs) == 0 {
 			packs = readDataFromStdin() // из stdin через pipe
 		}
 		if len(packs) == 0 {
 			packs = pRepo.ActivePacks() // активные
+		} else {
+			// проверка указанных пакетов на наличие или блокировку в репозитории
+			for _, pack := range packs {
+				if !pRepo.PackIsActive(pack) {
+					log.Fatalf("Пакет '%s' заблокирован или отсутствует в репозитории", pack)
+				}
+			}
 		}
 		if err = h.Index(pRepo, flagFullIndex, packs); err != nil {
 			fatal(err)
@@ -313,7 +323,7 @@ func printUsage() {
 		{"alias [show] | [set packname=alias,... | <(stdin)] | [del alias,... | <(stdin)]]", "вывод, установка, удаление псевдонимов для пакетов"},
 		{"list", "вывод перечня и статуса пакетов в репозитории"},
 		{"status", "вывод информации о состоянии репозитория"},
-		{"migrate", "миграция данных БД при изменениии версии"},
+		{"migrate", "миграция данных БД при изменении версии"},
 		{"clean", "упаковка и переиндексация данных в БД"},
 		{"cleardb index|alias|status|all", "очистка БД от данных индекса, псевдонимов, блокировок или всех данных"},
 	}
