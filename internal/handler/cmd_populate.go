@@ -7,9 +7,15 @@ import (
 	"log"
 	"os"
 	"path"
+	"strconv"
+	"time"
 )
 
 type packages map[string]HashedPackData
+type indexData struct {
+	Packs packages          `json:"packages"`
+	Meta  map[string]string `json:"meta"`
+}
 
 // Populate выгружает данные об индексации репозитория в индекс-файл
 func Populate(r *Repo) error {
@@ -47,7 +53,14 @@ func Populate(r *Repo) error {
 	}
 
 	var jsonData []byte
-	jsonData, _ = json.MarshalIndent(packDataList, "", "  ")
+	// jsonData, _ = json.MarshalIndent(packDataList, "", "  ")
+	jsonData, _ = json.MarshalIndent(indexData{
+		Packs: packDataList,
+		Meta: map[string]string{
+			"stamp":   strconv.FormatInt(time.Now().Unix(), 10),
+			"version": IndexFileFormatVersion,
+		},
+	}, "", "    ")
 
 	fpIndex := path.Join(r.path, IndexGZ)
 

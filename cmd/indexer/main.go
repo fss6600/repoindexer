@@ -2,7 +2,7 @@
 // Indexer: создание репозитория подсистем ЕИИС "Соцстрах" и индексация пакетов
 package main
 
-const version string = "0.1.6"
+const version string = "1.0.0"
 
 func main() {
 	run()

@@ -25,7 +25,9 @@ const (
 	// DBVersionMajor major ver DB
 	DBVersionMajor int64 = 1
 	// DBVersionMinor minor ver DB
-	DBVersionMinor int64 = 5
+	DBVersionMinor int64 = 6
+	// IndexFileFormatVersion index file format version for client info
+	IndexFileFormatVersion = "1"
 )
 
 // general
