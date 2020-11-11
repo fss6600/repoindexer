@@ -2,18 +2,23 @@
 VER=`grep version cmd/indexer/main.go | grep -Po '[\d.]+'`
 FILE=indexer.exe
 TARNAME=indexer-$VER.tar.gz
+HTMLFILE=readme.html
 OUT=bin/win32/
 GOOS=windows
 GOARCH=386
 CGO_ENABLED=1
 CC=i686-w64-mingw32-gcc
 
+rm -f $OUT/*.gz
+make -C docs singlehtml
+cp docs/_build/singlehtml/index.html bin/win32/readme.html
 env CC=$CC GOOS=$GOOS GOARCH=$GOARCH CGO_ENABLED=$CGO_ENABLED go build -gccgoflags "-g -O2 -m32" -ldflags "-w -s" -x -o $OUT/$FILE ./cmd/indexer
 
 if [ -f $OUT/$FILE ]; then
 	upx -6 $OUT/$FILE
-	tar C $OUT -czvf $OUT/$TARNAME $FILE
-	rm $OUT/$FILE
+	tar -C $OUT -czvf $OUT/$TARNAME $FILE $HTMLFILE
+	rm $OUT/$FILE $OUT/$HTMLFILE
 else
 	echo 'не найден файл ${FILE}'
 fi
+
