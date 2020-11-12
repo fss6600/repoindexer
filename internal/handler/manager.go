@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 
 	"time"
 
@@ -160,8 +161,8 @@ func (r *Repo) aliases() [][]string {
 // setAlias устанавливает псевдоним для пакета при отсутствии уже установленного псевдонима
 // и при наличии актуального пакета
 func (r *Repo) setAlias(alias []string) error {
-	pck := alias[0]
-	als := alias[1]
+	pck := strings.Trim(alias[0], "\"")
+	als := strings.Trim(alias[1], "\"")
 	if !r.PackIsActive(pck) {
 		return &InternalError{
 			Text:   fmt.Sprintf("пакет %q не найден или заблокирован", pck),
@@ -202,7 +203,7 @@ func (r *Repo) setAlias(alias []string) error {
 
 // delAlias удалает псевдоним
 func (r *Repo) delAlias(alias string) error {
-	if res, err := r.db.Exec("DELETE FROM aliases WHERE alias=?;", alias); err != nil {
+	if res, err := r.db.Exec("DELETE FROM aliases WHERE alias=?;", strings.Trim(alias, "\"")); err != nil {
 		return &InternalError{
 			Text:   "ошибка удаления псевдонима",
 			Caller: "Manager::DelAlias",
